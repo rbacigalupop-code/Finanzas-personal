@@ -10,37 +10,73 @@ export interface FinancialContext {
   monthlySavings: number;
   projectedSavings3m: number;
   projectedSavings6m: number;
+  totalDebt?: number;
+  totalMinPayments?: number;
+  debtCount?: number;
+  monthlyRecurring?: number;
+  savingsRate?: number;
+  debtToIncomeRatio?: number;
 }
 
-export async function analyzeInvestment(
+export async function analyzeFinancial(
   query: string,
   context: FinancialContext
 ): Promise<string> {
-  const systemPrompt = `Eres un asesor financiero personal experto. Tienes acceso a internet para buscar información actualizada sobre mercados, tasas de interés, activos y oportunidades de inversión.
+  const savingsRate = context.monthlyIncome > 0
+    ? ((context.monthlySavings / context.monthlyIncome) * 100).toFixed(1)
+    : '0';
 
-Contexto financiero del usuario:
-- Ingreso mensual: $${context.monthlyIncome.toLocaleString()}
-- Gasto mensual: $${context.monthlyExpenses.toLocaleString()}
-- Ahorro mensual: $${context.monthlySavings.toLocaleString()}
-- Ahorro proyectado 3 meses: $${context.projectedSavings3m.toLocaleString()}
-- Ahorro proyectado 6 meses: $${context.projectedSavings6m.toLocaleString()}
+  const debtToIncome = context.monthlyIncome > 0 && context.totalDebt
+    ? ((context.totalDebt / context.monthlyIncome) * 100).toFixed(0)
+    : null;
 
-Cuando respondas:
-1. Busca información actual sobre el tema de inversión consultado
-2. Evalúa la factibilidad basada en el perfil financiero del usuario
-3. Presenta: Factibilidad (Alta/Media/Baja), Nivel de riesgo, Monto recomendado, Plazo sugerido, Recomendación clara
-4. Usa formato estructurado con emojis para mejor lectura`;
+  const systemPrompt = `Eres un especialista financiero personal completo y experto en finanzas personales chilenas. Tienes acceso a internet para buscar información actualizada sobre tasas de interés, instrumentos de inversión, inflación, y oportunidades financieras en Chile.
+
+═══════════════════════════════════════
+PERFIL FINANCIERO DEL USUARIO (actualizado)
+═══════════════════════════════════════
+💰 Ingreso mensual:        $${context.monthlyIncome.toLocaleString('es-CL')}
+💸 Gastos mensuales:       $${context.monthlyExpenses.toLocaleString('es-CL')}
+💵 Ahorro neto mensual:    $${context.monthlySavings.toLocaleString('es-CL')} (${savingsRate}% tasa de ahorro)
+📈 Proyección 3 meses:     $${context.projectedSavings3m.toLocaleString('es-CL')}
+📈 Proyección 6 meses:     $${context.projectedSavings6m.toLocaleString('es-CL')}
+${context.totalDebt ? `🔴 Deuda total:            $${context.totalDebt.toLocaleString('es-CL')}` : ''}
+${context.totalMinPayments ? `📋 Cuotas mínimas/mes:    $${context.totalMinPayments.toLocaleString('es-CL')}` : ''}
+${context.debtCount !== undefined ? `🗂️  Nro. de deudas:         ${context.debtCount}` : ''}
+${context.monthlyRecurring ? `🔄 Gastos fijos/mes:       $${context.monthlyRecurring.toLocaleString('es-CL')}` : ''}
+${debtToIncome ? `📊 Ratio deuda/ingreso:    ${debtToIncome}%` : ''}
+
+═══════════════════════════════════════
+ÁREAS EN QUE PUEDES AYUDAR
+═══════════════════════════════════════
+• 💳 Gestión y eliminación de deudas (Avalancha, Bola de Nieve)
+• 💰 Estrategias de ahorro y presupuesto (método 50/30/20, etc.)
+• 📈 Oportunidades de inversión (APV, fondos mutuos, acciones, DAP, etc.)
+• 🏦 Productos financieros chilenos (Cuenta 2 AFP, APV, fondos, etc.)
+• 🛡️ Fondo de emergencia
+• 📱 Optimización de gastos fijos y suscripciones
+• 🎯 Metas financieras y planificación
+• 💡 Consejos prácticos adaptados a su perfil real
+
+INSTRUCCIONES DE RESPUESTA:
+1. Sé concreto y personalizado — usa los números reales del perfil del usuario
+2. Si se consulta sobre inversiones, busca tasas/opciones actuales en Chile con internet
+3. Evalúa siempre la factibilidad según su capacidad de ahorro real
+4. Usa formato con emojis y secciones claras para mejor lectura mobile
+5. Sé directo y accionable — da pasos concretos, no solo teoría
+6. Si hay deudas, siempre prioriza su liquidación antes de invertir (excepto APV con match del empleador)
+7. Adapta el lenguaje: simple, cercano y en español chileno`;
 
   const tools: Anthropic.Tool[] = [
     {
       name: 'web_search',
-      description: 'Busca información actualizada en internet sobre mercados financieros, activos, tasas de interés y oportunidades de inversión.',
+      description: 'Busca información actualizada en internet sobre tasas de interés, fondos de inversión, instrumentos financieros chilenos, inflación, AFP, APV, fondos mutuos y cualquier tema financiero relevante.',
       input_schema: {
         type: 'object' as const,
         properties: {
           query: {
             type: 'string',
-            description: 'Término de búsqueda',
+            description: 'Término de búsqueda. Ser específico, ej: "tasa DAP Chile 2025" o "fondos mutuos renta fija Chile"',
           },
         },
         required: ['query'],
@@ -103,7 +139,7 @@ Cuando respondas:
 
 async function performWebSearch(query: string): Promise<string> {
   try {
-    const encoded = encodeURIComponent(query + ' 2025 finanzas inversión');
+    const encoded = encodeURIComponent(query + ' Chile 2025');
     const res = await fetch(
       `https://api.duckduckgo.com/?q=${encoded}&format=json&no_html=1&skip_disambig=1`
     );
@@ -116,8 +152,8 @@ async function performWebSearch(query: string): Promise<string> {
       .filter(Boolean)
       .join('\n');
 
-    return abstract || relatedTopics || `Información de búsqueda sobre: ${query}`;
+    return abstract || relatedTopics || `Búsqueda realizada para: ${query}`;
   } catch {
-    return `Búsqueda realizada para: ${query}. Usa tu conocimiento actualizado sobre este tema.`;
+    return `Búsqueda realizada para: ${query}. Usa tu conocimiento actualizado sobre finanzas chilenas.`;
   }
 }

@@ -66,6 +66,37 @@ export async function initDb() {
       response TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS debts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      total_amount REAL NOT NULL,
+      current_balance REAL NOT NULL,
+      interest_rate REAL NOT NULL DEFAULT 0,
+      minimum_payment REAL NOT NULL DEFAULT 0,
+      due_day INTEGER,
+      color TEXT NOT NULL DEFAULT '#ef4444',
+      icon TEXT NOT NULL DEFAULT '💳',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS debt_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      debt_id INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      date TEXT NOT NULL,
+      note TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS recurring_expenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      amount REAL NOT NULL,
+      category_id INTEGER,
+      day_of_month INTEGER NOT NULL DEFAULT 1,
+      color TEXT NOT NULL DEFAULT '#6366f1',
+      icon TEXT NOT NULL DEFAULT '🔄',
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   await seedCategories(db);
@@ -323,4 +354,121 @@ export async function getInvestmentQueries() {
 export async function insertInvestmentQuery(query: string, response: string) {
   const db = getClient();
   await db.execute({ sql: 'INSERT INTO investment_queries (query, response) VALUES (?, ?)', args: [query, response] });
+}
+
+// ── Debts ────────────────────────────────────────────────────────────────────
+export async function getDebts() {
+  const db = getClient();
+  const res = await db.execute(`
+    SELECT d.*,
+      COALESCE((SELECT SUM(amount) FROM debt_payments WHERE debt_id = d.id), 0) as total_paid
+    FROM debts d ORDER BY interest_rate DESC, current_balance ASC
+  `);
+  return toArr(res.rows);
+}
+
+export async function insertDebt(data: {
+  name: string; total_amount: number; current_balance: number;
+  interest_rate: number; minimum_payment: number; due_day?: number;
+  color: string; icon: string;
+}) {
+  const db = getClient();
+  const res = await db.execute({
+    sql: `INSERT INTO debts (name, total_amount, current_balance, interest_rate, minimum_payment, due_day, color, icon)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [data.name, data.total_amount, data.current_balance, data.interest_rate,
+           data.minimum_payment, data.due_day ?? null, data.color, data.icon],
+  });
+  return res.lastInsertRowid;
+}
+
+export async function updateDebt(id: number, data: Partial<{
+  name: string; current_balance: number; interest_rate: number;
+  minimum_payment: number; due_day: number; color: string; icon: string;
+}>) {
+  const db = getClient();
+  const fields = Object.keys(data).map((k) => `${k} = ?`).join(', ');
+  const values = Object.values(data);
+  await db.execute({ sql: `UPDATE debts SET ${fields} WHERE id = ?`, args: [...values, id] });
+}
+
+export async function deleteDebt(id: number) {
+  const db = getClient();
+  await db.batch([
+    { sql: 'DELETE FROM debt_payments WHERE debt_id = ?', args: [id] },
+    { sql: 'DELETE FROM debts WHERE id = ?', args: [id] },
+  ], 'write');
+}
+
+// ── Debt Payments ─────────────────────────────────────────────────────────────
+export async function getDebtPayments(debtId: number) {
+  const db = getClient();
+  const res = await db.execute({
+    sql: 'SELECT * FROM debt_payments WHERE debt_id = ? ORDER BY date DESC',
+    args: [debtId],
+  });
+  return toArr(res.rows);
+}
+
+export async function insertDebtPayment(debtId: number, amount: number, date: string, note?: string) {
+  const db = getClient();
+  // Insert payment and reduce balance
+  const res = await db.execute({
+    sql: 'INSERT INTO debt_payments (debt_id, amount, date, note) VALUES (?, ?, ?, ?)',
+    args: [debtId, amount, date, note ?? null],
+  });
+  await db.execute({
+    sql: 'UPDATE debts SET current_balance = MAX(0, current_balance - ?) WHERE id = ?',
+    args: [amount, debtId],
+  });
+  return res.lastInsertRowid;
+}
+
+// ── Recurring Expenses ────────────────────────────────────────────────────────
+export async function getRecurringExpenses(onlyActive = false) {
+  const db = getClient();
+  const res = onlyActive
+    ? await db.execute(`
+        SELECT r.*, c.name as category_name, c.color as category_color, c.icon as category_icon
+        FROM recurring_expenses r LEFT JOIN categories c ON r.category_id = c.id
+        WHERE r.is_active = 1 ORDER BY r.day_of_month ASC`)
+    : await db.execute(`
+        SELECT r.*, c.name as category_name, c.color as category_color, c.icon as category_icon
+        FROM recurring_expenses r LEFT JOIN categories c ON r.category_id = c.id
+        ORDER BY r.is_active DESC, r.day_of_month ASC`);
+  return toArr(res.rows);
+}
+
+export async function insertRecurringExpense(data: {
+  name: string; amount: number; category_id?: number;
+  day_of_month: number; color: string; icon: string;
+}) {
+  const db = getClient();
+  const res = await db.execute({
+    sql: `INSERT INTO recurring_expenses (name, amount, category_id, day_of_month, color, icon)
+          VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [data.name, data.amount, data.category_id ?? null, data.day_of_month, data.color, data.icon],
+  });
+  return res.lastInsertRowid;
+}
+
+export async function updateRecurringExpense(id: number, data: Partial<{
+  name: string; amount: number; category_id: number; day_of_month: number;
+  color: string; icon: string; is_active: number;
+}>) {
+  const db = getClient();
+  const fields = Object.keys(data).map((k) => `${k} = ?`).join(', ');
+  const values = Object.values(data);
+  await db.execute({ sql: `UPDATE recurring_expenses SET ${fields} WHERE id = ?`, args: [...values, id] });
+}
+
+export async function deleteRecurringExpense(id: number) {
+  const db = getClient();
+  await db.execute({ sql: 'DELETE FROM recurring_expenses WHERE id = ?', args: [id] });
+}
+
+export async function getMonthlyRecurringTotal() {
+  const db = getClient();
+  const res = await db.execute('SELECT COALESCE(SUM(amount), 0) as total FROM recurring_expenses WHERE is_active = 1');
+  return Number((res.rows[0] as any).total);
 }

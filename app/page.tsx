@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Plus, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Wallet, CreditCard, RefreshCw, BarChart2 } from 'lucide-react';
 import AlertBanner from '@/components/AlertBanner';
 import SpendingChart from '@/components/SpendingChart';
 
@@ -20,13 +20,24 @@ interface DashboardData {
   year: number;
 }
 
+interface DebtSummary { totalDebt: number; debtCount: number; totalRecurring: number; }
+
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [debtSummary, setDebtSummary] = useState<DebtSummary | null>(null);
 
   useEffect(() => {
     fetch('/api/dashboard').then((r) => r.json()).then(setData);
+    Promise.all([
+      fetch('/api/debts').then((r) => r.json()),
+      fetch('/api/recurring?active=true').then((r) => r.json()),
+    ]).then(([debts, recurring]) => {
+      const totalDebt = debts.reduce((s: number, d: any) => s + Number(d.current_balance), 0);
+      const totalRecurring = recurring.reduce((s: number, r: any) => s + Number(r.amount), 0);
+      setDebtSummary({ totalDebt, debtCount: debts.length, totalRecurring });
+    });
   }, []);
 
   if (!data) {
@@ -102,6 +113,39 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* Quick-access cards: Debts / Recurring / Projections */}
+      <div className="grid grid-cols-3 gap-2">
+        <Link href="/debts">
+          <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex flex-col items-center gap-1 active:scale-95 transition-transform">
+            <CreditCard size={18} className="text-red-400" />
+            <p className="text-[10px] text-gray-400 font-medium">Deudas</p>
+            <p className="text-sm font-bold text-red-500">
+              {debtSummary
+                ? `$${Math.round(debtSummary.totalDebt / 1000)}k`
+                : '—'}
+            </p>
+          </div>
+        </Link>
+        <Link href="/debts?tab=recurring">
+          <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex flex-col items-center gap-1 active:scale-95 transition-transform">
+            <RefreshCw size={18} className="text-indigo-400" />
+            <p className="text-[10px] text-gray-400 font-medium">Fijos/mes</p>
+            <p className="text-sm font-bold text-indigo-600">
+              {debtSummary
+                ? `$${Math.round(debtSummary.totalRecurring / 1000)}k`
+                : '—'}
+            </p>
+          </div>
+        </Link>
+        <Link href="/projections">
+          <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex flex-col items-center gap-1 active:scale-95 transition-transform">
+            <BarChart2 size={18} className="text-emerald-400" />
+            <p className="text-[10px] text-gray-400 font-medium">Proyección</p>
+            <p className="text-sm font-bold text-emerald-600">Ver →</p>
+          </div>
+        </Link>
+      </div>
 
       {/* Budget progress */}
       {data.budgets.length > 0 && (
