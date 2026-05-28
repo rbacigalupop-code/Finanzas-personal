@@ -97,9 +97,72 @@ export async function initDb() {
       is_active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS business_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL,
+      icon TEXT NOT NULL,
+      type TEXT NOT NULL,
+      group_label TEXT
+    );
+    CREATE TABLE IF NOT EXISTS business_transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      gross_amount REAL NOT NULL,
+      net_amount REAL NOT NULL,
+      tax_amount REAL NOT NULL DEFAULT 0,
+      has_iva INTEGER NOT NULL DEFAULT 0,
+      category_id INTEGER,
+      description TEXT,
+      date TEXT NOT NULL,
+      document_type TEXT NOT NULL DEFAULT 'boleta',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS tax_periods (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      month INTEGER NOT NULL,
+      year INTEGER NOT NULL,
+      ppm_rate REAL NOT NULL DEFAULT 1.0,
+      is_declared INTEGER NOT NULL DEFAULT 0,
+      notes TEXT,
+      UNIQUE(month, year)
+    );
   `);
 
   await seedCategories(db);
+  await seedBusinessCategories(db);
+}
+
+const BUSINESS_CATEGORIES = [
+  // Ingresos empresa
+  { name: 'Venta productos',    color: '#16a34a', icon: '🛒', type: 'income',  group: 'Ingresos'    },
+  { name: 'Servicios',          color: '#3b82f6', icon: '🔧', type: 'income',  group: 'Ingresos'    },
+  { name: 'Consultoría',        color: '#8b5cf6', icon: '💼', type: 'income',  group: 'Ingresos'    },
+  { name: 'Arriendo',           color: '#eab308', icon: '🏢', type: 'income',  group: 'Ingresos'    },
+  { name: 'Otros ingresos',     color: '#6b7280', icon: '💰', type: 'income',  group: 'Ingresos'    },
+  // Gastos empresa
+  { name: 'Inventario/Insumos', color: '#f97316', icon: '📦', type: 'expense', group: 'Operación'   },
+  { name: 'Sueldos/Nómina',     color: '#ef4444', icon: '👥', type: 'expense', group: 'Operación'   },
+  { name: 'Arriendo local',     color: '#eab308', icon: '🏠', type: 'expense', group: 'Operación'   },
+  { name: 'Servicios básicos',  color: '#06b6d4', icon: '💡', type: 'expense', group: 'Operación'   },
+  { name: 'Marketing',          color: '#ec4899', icon: '📣', type: 'expense', group: 'Comercial'   },
+  { name: 'Software/Tech',      color: '#6366f1', icon: '💻', type: 'expense', group: 'Comercial'   },
+  { name: 'Transporte/Log.',    color: '#0ea5e9', icon: '🚛', type: 'expense', group: 'Logística'   },
+  { name: 'Contab./Legal',      color: '#78716c', icon: '⚖️', type: 'expense', group: 'Admin'       },
+  { name: 'Capacitación',       color: '#22c55e', icon: '🎓', type: 'expense', group: 'Admin'       },
+  { name: 'Gastos varios',      color: '#6b7280', icon: '💸', type: 'expense', group: 'Admin'       },
+];
+
+async function seedBusinessCategories(db: Client) {
+  const res = await db.execute('SELECT COUNT(*) as c FROM business_categories');
+  const count = Number((res.rows[0] as any).c);
+  if (count > 0) return;
+
+  const stmts = BUSINESS_CATEGORIES.map((c) => ({
+    sql: 'INSERT INTO business_categories (name, color, icon, type, group_label) VALUES (?, ?, ?, ?, ?)',
+    args: [c.name, c.color, c.icon, c.type, c.group] as any[],
+  }));
+  await db.batch(stmts, 'write');
 }
 
 const CATEGORIES = [
@@ -480,4 +543,168 @@ export async function getMonthlyRecurringTotal() {
   const db = getClient();
   const res = await db.execute('SELECT COALESCE(SUM(amount), 0) as total FROM recurring_expenses WHERE is_active = 1');
   return Number((res.rows[0] as any).total);
+}
+
+// ── Business Categories ───────────────────────────────────────────────────────
+export async function getBusinessCategories(type?: string) {
+  const db = getClient();
+  const res = type
+    ? await db.execute({ sql: 'SELECT * FROM business_categories WHERE type = ? ORDER BY group_label, name', args: [type] })
+    : await db.execute('SELECT * FROM business_categories ORDER BY type, group_label, name');
+  return toArr(res.rows);
+}
+
+// ── Business Transactions ─────────────────────────────────────────────────────
+export async function getBusinessTransactions(year: number, month: number) {
+  const db = getClient();
+  const monthStr = String(month).padStart(2, '0');
+  const res = await db.execute({
+    sql: `SELECT bt.*, bc.name as category_name, bc.color as category_color, bc.icon as category_icon
+          FROM business_transactions bt
+          LEFT JOIN business_categories bc ON bt.category_id = bc.id
+          WHERE strftime('%Y-%m', bt.date) = ?
+          ORDER BY bt.date DESC, bt.created_at DESC`,
+    args: [`${year}-${monthStr}`],
+  });
+  return toArr(res.rows);
+}
+
+export async function getAllBusinessTransactions(limit = 100) {
+  const db = getClient();
+  const res = await db.execute({
+    sql: `SELECT bt.*, bc.name as category_name, bc.color as category_color, bc.icon as category_icon
+          FROM business_transactions bt
+          LEFT JOIN business_categories bc ON bt.category_id = bc.id
+          ORDER BY bt.date DESC, bt.created_at DESC LIMIT ?`,
+    args: [limit],
+  });
+  return toArr(res.rows);
+}
+
+export async function insertBusinessTransaction(data: {
+  type: string; gross_amount: number; net_amount: number; tax_amount: number;
+  has_iva: number; category_id?: number; description?: string;
+  date: string; document_type: string;
+}) {
+  const db = getClient();
+  const res = await db.execute({
+    sql: `INSERT INTO business_transactions
+            (type, gross_amount, net_amount, tax_amount, has_iva, category_id, description, date, document_type)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      data.type, data.gross_amount, data.net_amount, data.tax_amount,
+      data.has_iva, data.category_id ?? null, data.description ?? '',
+      data.date, data.document_type,
+    ],
+  });
+  return res.lastInsertRowid;
+}
+
+export async function updateBusinessTransaction(id: number, data: Partial<{
+  type: string; gross_amount: number; net_amount: number; tax_amount: number;
+  has_iva: number; category_id: number; description: string; date: string; document_type: string;
+}>) {
+  const db = getClient();
+  const fields = Object.keys(data).map((k) => `${k} = ?`).join(', ');
+  const values = Object.values(data);
+  await db.execute({ sql: `UPDATE business_transactions SET ${fields} WHERE id = ?`, args: [...values, id] });
+}
+
+export async function deleteBusinessTransaction(id: number) {
+  const db = getClient();
+  await db.execute({ sql: 'DELETE FROM business_transactions WHERE id = ?', args: [id] });
+}
+
+// ── Business Summary ──────────────────────────────────────────────────────────
+export async function getBusinessMonthlySummary(year: number, month: number) {
+  const db = getClient();
+  const monthStr = String(month).padStart(2, '0');
+  const ym = `${year}-${monthStr}`;
+
+  const res = await db.execute({
+    sql: `SELECT
+            COALESCE(SUM(CASE WHEN type='income' THEN net_amount ELSE 0 END), 0)  AS income_net,
+            COALESCE(SUM(CASE WHEN type='income' THEN gross_amount ELSE 0 END), 0) AS income_gross,
+            COALESCE(SUM(CASE WHEN type='expense' THEN net_amount ELSE 0 END), 0) AS expense_net,
+            COALESCE(SUM(CASE WHEN type='expense' THEN gross_amount ELSE 0 END), 0) AS expense_gross,
+            COALESCE(SUM(CASE WHEN type='income'  AND has_iva=1 THEN tax_amount ELSE 0 END), 0) AS iva_debito,
+            COALESCE(SUM(CASE WHEN type='expense' AND has_iva=1 THEN tax_amount ELSE 0 END), 0) AS iva_credito
+          FROM business_transactions
+          WHERE strftime('%Y-%m', date) = ?`,
+    args: [ym],
+  });
+  return { ...res.rows[0] } as any;
+}
+
+export async function getBusinessSpendingByCategory(year: number, month: number) {
+  const db = getClient();
+  const monthStr = String(month).padStart(2, '0');
+  const res = await db.execute({
+    sql: `SELECT bc.id, bc.name, bc.color, bc.icon, bc.group_label,
+                 COALESCE(SUM(bt.net_amount), 0) as total
+          FROM business_categories bc
+          LEFT JOIN business_transactions bt ON bt.category_id = bc.id
+            AND strftime('%Y-%m', bt.date) = ? AND bt.type = 'expense'
+          WHERE bc.type = 'expense'
+          GROUP BY bc.id ORDER BY total DESC`,
+    args: [`${year}-${monthStr}`],
+  });
+  return toArr(res.rows);
+}
+
+export async function getBusinessMonthlyHistory(months = 6) {
+  const db = getClient();
+  const res = await db.execute({
+    sql: `SELECT strftime('%Y-%m', date) as month,
+                 SUM(CASE WHEN type='income' THEN net_amount ELSE 0 END)  as income,
+                 SUM(CASE WHEN type='expense' THEN net_amount ELSE 0 END) as expenses,
+                 SUM(CASE WHEN type='income' AND has_iva=1 THEN tax_amount ELSE 0 END) as iva_debito,
+                 SUM(CASE WHEN type='expense' AND has_iva=1 THEN tax_amount ELSE 0 END) as iva_credito
+          FROM business_transactions
+          WHERE date >= date('now', '-' || ? || ' months')
+          GROUP BY month ORDER BY month ASC`,
+    args: [months],
+  });
+  return toArr(res.rows);
+}
+
+// ── Tax Periods ───────────────────────────────────────────────────────────────
+export async function getTaxPeriod(year: number, month: number) {
+  const db = getClient();
+  const res = await db.execute({
+    sql: 'SELECT * FROM tax_periods WHERE year = ? AND month = ?',
+    args: [year, month],
+  });
+  return res.rows[0] ? { ...res.rows[0] } : null;
+}
+
+export async function upsertTaxPeriod(year: number, month: number, data: {
+  ppm_rate?: number; is_declared?: number; notes?: string;
+}) {
+  const db = getClient();
+  await db.execute({
+    sql: `INSERT INTO tax_periods (year, month, ppm_rate, is_declared, notes)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(month, year) DO UPDATE SET
+            ppm_rate    = COALESCE(excluded.ppm_rate, ppm_rate),
+            is_declared = COALESCE(excluded.is_declared, is_declared),
+            notes       = COALESCE(excluded.notes, notes)`,
+    args: [year, month, data.ppm_rate ?? 1.0, data.is_declared ?? 0, data.notes ?? null],
+  });
+}
+
+export async function getTaxYearSummary(year: number) {
+  const db = getClient();
+  const res = await db.execute({
+    sql: `SELECT
+            strftime('%m', date) as month,
+            SUM(CASE WHEN type='income' AND has_iva=1 THEN tax_amount ELSE 0 END)  AS iva_debito,
+            SUM(CASE WHEN type='expense' AND has_iva=1 THEN tax_amount ELSE 0 END) AS iva_credito,
+            SUM(CASE WHEN type='income' THEN net_amount ELSE 0 END)                AS net_income
+          FROM business_transactions
+          WHERE strftime('%Y', date) = ?
+          GROUP BY month ORDER BY month ASC`,
+    args: [String(year)],
+  });
+  return toArr(res.rows);
 }

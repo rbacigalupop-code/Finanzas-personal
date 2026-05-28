@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Plus, TrendingUp, TrendingDown, Wallet, CreditCard, RefreshCw, BarChart2 } from 'lucide-react';
 import AlertBanner from '@/components/AlertBanner';
 import SpendingChart from '@/components/SpendingChart';
+import ModeSwitch from '@/components/ModeSwitch';
 
 interface DashboardData {
   income: number;
@@ -52,46 +53,45 @@ export default function Dashboard() {
 
   return (
     <div className="px-4 pt-6 pb-4 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-500">{MONTH_NAMES[data.month - 1]} {data.year}</p>
-          <h1 className="text-2xl font-bold text-gray-900">Mi Finanzas</h1>
+      {/* Header + Balance card (merged) */}
+      <div className="bg-gradient-to-br from-indigo-600 to-purple-600 -mx-4 -mt-6 px-4 pt-12 pb-5 mb-2">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-white/70 text-xs">{MONTH_NAMES[data.month - 1]} {data.year}</p>
+            <h1 className="text-white font-bold text-xl">Mis Finanzas</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <ModeSwitch />
+            <Link href="/transactions/new">
+              <button className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center active:scale-95 transition-transform">
+                <Plus size={20} className="text-white" />
+              </button>
+            </Link>
+          </div>
         </div>
-        <Link href="/transactions/new">
-          <button className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200 active:scale-95 transition-transform">
-            <Plus size={24} className="text-white" />
-          </button>
-        </Link>
-      </div>
-
-      {/* Alerts */}
-      <AlertBanner />
-
-      {/* Balance card */}
-      <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-3xl p-5 text-white shadow-lg">
+        {/* Balance */}
         <div className="flex items-center gap-2 mb-1">
-          <Wallet size={16} className="opacity-80" />
-          <p className="text-sm opacity-80">Balance del mes</p>
+          <Wallet size={15} className="text-white/70" />
+          <p className="text-white/70 text-sm">Balance del mes</p>
         </div>
-        <p className={`text-4xl font-bold mb-4 ${data.balance < 0 ? 'text-red-200' : ''}`}>
-          ${Math.abs(data.balance).toLocaleString()}
+        <p className={`text-4xl font-bold text-white mb-3 ${data.balance < 0 ? 'text-red-200' : ''}`}>
+          {data.balance < 0 ? '-' : ''}${Math.abs(data.balance).toLocaleString()}
           {data.balance < 0 && <span className="text-lg ml-1">negativo</span>}
         </p>
-        <div className="flex gap-4">
-          <div className="flex-1 bg-white/10 rounded-2xl p-3">
+        <div className="flex gap-3">
+          <div className="flex-1 bg-white/15 rounded-2xl p-3">
             <div className="flex items-center gap-1 mb-1">
-              <TrendingUp size={14} className="text-green-300" />
-              <span className="text-xs opacity-80">Ingresos</span>
+              <TrendingUp size={13} className="text-green-300" />
+              <span className="text-white/70 text-xs">Ingresos</span>
             </div>
-            <p className="text-lg font-bold">${data.income.toLocaleString()}</p>
+            <p className="text-white font-bold">${data.income.toLocaleString()}</p>
           </div>
-          <div className="flex-1 bg-white/10 rounded-2xl p-3">
+          <div className="flex-1 bg-white/15 rounded-2xl p-3">
             <div className="flex items-center gap-1 mb-1">
-              <TrendingDown size={14} className="text-red-300" />
-              <span className="text-xs opacity-80">Gastos</span>
+              <TrendingDown size={13} className="text-red-300" />
+              <span className="text-white/70 text-xs">Gastos</span>
             </div>
-            <p className="text-lg font-bold">${data.expenses.toLocaleString()}</p>
+            <p className="text-white font-bold">${data.expenses.toLocaleString()}</p>
           </div>
         </div>
       </div>

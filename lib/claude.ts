@@ -16,6 +16,18 @@ export interface FinancialContext {
   monthlyRecurring?: number;
   savingsRate?: number;
   debtToIncomeRatio?: number;
+  // Business context (optional)
+  business?: {
+    incomeNet: number;
+    expenseNet: number;
+    netProfit: number;
+    grossMargin: number;
+    ivaDebito: number;
+    ivaCredito: number;
+    ivaNet: number;
+    ppmRate: number;
+    ppmAmount: number;
+  };
 }
 
 export async function analyzeFinancial(
@@ -30,7 +42,9 @@ export async function analyzeFinancial(
     ? ((context.totalDebt / context.monthlyIncome) * 100).toFixed(0)
     : null;
 
-  const systemPrompt = `Eres un especialista financiero personal completo y experto en finanzas personales chilenas. Tienes acceso a internet para buscar información actualizada sobre tasas de interés, instrumentos de inversión, inflación, y oportunidades financieras en Chile.
+  const hasBusinessCtx = Boolean(context.business);
+
+  const systemPrompt = `Eres un especialista financiero completo, experto en finanzas personales Y empresariales chilenas. Tienes acceso a internet para buscar información actualizada sobre tasas, instrumentos de inversión, normativa tributaria chilena (SII, IVA, PPM, renta) y oportunidades financieras. Tienes acceso a internet para buscar información actualizada sobre tasas de interés, instrumentos de inversión, inflación, y oportunidades financieras en Chile.
 
 ═══════════════════════════════════════
 PERFIL FINANCIERO DEL USUARIO (actualizado)
@@ -45,6 +59,18 @@ ${context.totalMinPayments ? `📋 Cuotas mínimas/mes:    $${context.totalMinPa
 ${context.debtCount !== undefined ? `🗂️  Nro. de deudas:         ${context.debtCount}` : ''}
 ${context.monthlyRecurring ? `🔄 Gastos fijos/mes:       $${context.monthlyRecurring.toLocaleString('es-CL')}` : ''}
 ${debtToIncome ? `📊 Ratio deuda/ingreso:    ${debtToIncome}%` : ''}
+${hasBusinessCtx ? `
+═══════════════════════════════════════
+PERFIL EMPRESARIAL (mes actual)
+═══════════════════════════════════════
+📈 Ingresos netos empresa:  $${context.business!.incomeNet.toLocaleString('es-CL')}
+📉 Gastos netos empresa:    $${context.business!.expenseNet.toLocaleString('es-CL')}
+💹 Resultado neto:          $${context.business!.netProfit.toLocaleString('es-CL')}
+📊 Margen bruto:            ${context.business!.grossMargin}%
+🧾 IVA débito:              $${context.business!.ivaDebito.toLocaleString('es-CL')}
+🧾 IVA crédito:             $${context.business!.ivaCredito.toLocaleString('es-CL')}
+⚖️  IVA neto (a pagar SII): $${context.business!.ivaNet.toLocaleString('es-CL')}
+💰 PPM (${context.business!.ppmRate}%):            $${context.business!.ppmAmount.toLocaleString('es-CL')}` : ''}
 
 ═══════════════════════════════════════
 ÁREAS EN QUE PUEDES AYUDAR
@@ -56,7 +82,10 @@ ${debtToIncome ? `📊 Ratio deuda/ingreso:    ${debtToIncome}%` : ''}
 • 🛡️ Fondo de emergencia
 • 📱 Optimización de gastos fijos y suscripciones
 • 🎯 Metas financieras y planificación
-• 💡 Consejos prácticos adaptados a su perfil real
+• 🏢 Finanzas empresariales: IVA, PPM, F29, optimización fiscal
+• 📊 Análisis de márgenes, flujo de caja y rentabilidad empresarial
+• ⚖️  Normativa tributaria chilena (SII, declaraciones, retenciones)
+• 💡 Consejos prácticos adaptados al perfil real del usuario
 
 INSTRUCCIONES DE RESPUESTA:
 1. Sé concreto y personalizado — usa los números reales del perfil del usuario

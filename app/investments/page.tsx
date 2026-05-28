@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { Send, BrainCircuit, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { Send, BrainCircuit, ChevronDown, ChevronUp, Loader2, User, Building2 } from 'lucide-react';
 
 interface FinancialQuery {
   id: number;
@@ -10,7 +10,7 @@ interface FinancialQuery {
   created_at: string;
 }
 
-const SUGGESTIONS = [
+const PERSONAL_SUGGESTIONS = [
   '¿Cómo puedo salir de mis deudas más rápido?',
   '¿Cuánto debería destinar al pago de deudas vs ahorro?',
   '¿Vale la pena un APV con mi sueldo actual?',
@@ -19,6 +19,17 @@ const SUGGESTIONS = [
   '¿Me conviene refinanciar mis deudas?',
   '¿En qué invertir con poco dinero en Chile?',
   '¿Cómo reducir mis gastos fijos?',
+];
+
+const BUSINESS_SUGGESTIONS = [
+  '¿Cómo optimizo el pago de IVA de mi empresa?',
+  '¿Qué tasa de PPM debería usar?',
+  '¿Cómo mejorar el margen de mi negocio?',
+  '¿Conviene ser empresa o persona natural?',
+  '¿Cómo planificar el impuesto a la renta anual?',
+  '¿Qué gastos puedo rebajar como crédito fiscal?',
+  '¿Cuándo me conviene facturar vs boleta?',
+  '¿Cómo mejorar el flujo de caja de mi empresa?',
 ];
 
 function formatResponse(text: string) {
@@ -30,11 +41,14 @@ function formatResponse(text: string) {
 }
 
 export default function AdvisorPage() {
-  const [query, setQuery] = useState('');
+  const [query, setQuery]   = useState('');
   const [history, setHistory] = useState<FinancialQuery[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [mode, setMode]     = useState<'personal' | 'business'>('personal');
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const SUGGESTIONS = mode === 'business' ? BUSINESS_SUGGESTIONS : PERSONAL_SUGGESTIONS;
 
   useEffect(() => {
     fetch('/api/investments').then((r) => r.json()).then(setHistory);
@@ -48,7 +62,7 @@ export default function AdvisorPage() {
     const res = await fetch('/api/investments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: text }),
+      body: JSON.stringify({ query: text, mode }),
     });
     const data = await res.json();
     setLoading(false);
@@ -67,9 +81,26 @@ export default function AdvisorPage() {
           <BrainCircuit size={26} className="text-white/90" />
           <h1 className="text-white font-bold text-xl">Asesor Financiero IA</h1>
         </div>
-        <p className="text-white/70 text-sm">
+        <p className="text-white/70 text-sm mb-3">
           Consultas personalizadas basadas en tu perfil real · acceso a internet en tiempo real
         </p>
+        {/* Mode toggle */}
+        <div className="flex bg-white/15 rounded-xl p-0.5 gap-0.5 w-fit">
+          <button onClick={() => setMode('personal')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              mode === 'personal' ? 'bg-white/90 text-indigo-700 shadow-sm' : 'text-white/80'
+            }`}
+          >
+            <User size={12} /> Personal
+          </button>
+          <button onClick={() => setMode('business')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+              mode === 'business' ? 'bg-white/90 text-emerald-700 shadow-sm' : 'text-white/80'
+            }`}
+          >
+            <Building2 size={12} /> Empresa
+          </button>
+        </div>
       </div>
 
       <div className="px-4 pt-4 space-y-4">
