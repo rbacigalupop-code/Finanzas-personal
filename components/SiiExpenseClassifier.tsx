@@ -120,6 +120,26 @@ const STATUS_CONFIG = {
   rejected: { color: 'text-red-700',   bg: 'bg-red-50 border-red-200',       Icon: XCircle,       label: '❌ Riesgo de rechazo SII'     },
 };
 
+// Extracted sub-component so the Icon reference is a plain capitalized name (JSX requirement)
+function OverallBanner({ overall }: { overall: 'ok' | 'review' | 'rejected' }) {
+  const cfg  = STATUS_CONFIG[overall];
+  const Icon = cfg.Icon;
+  return (
+    <div className={`flex items-center gap-2 rounded-xl p-2.5 border ${cfg.bg}`}>
+      <Icon size={16} className={cfg.color} />
+      <div className="flex-1">
+        <p className={`text-xs font-bold ${cfg.color}`}>{cfg.label}</p>
+        {overall === 'rejected' && (
+          <p className="text-[10px] text-red-600">Consulta con tu contador antes de incluir este gasto</p>
+        )}
+        {overall === 'ok' && (
+          <p className="text-[10px] text-green-600">El gasto parece cumplir los requisitos del Art. 31 LIR</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function SiiExpenseClassifier({ giro, activityCategory, expenseCategoryName }: Props) {
   const [open, setOpen]       = useState(false);
   const [answers, setAnswers] = useState<Record<string, boolean | null>>(
@@ -257,22 +277,7 @@ export default function SiiExpenseClassifier({ giro, activityCategory, expenseCa
           )}
 
           {/* Overall result banner */}
-          {overall && (
-            <div className={`flex items-center gap-2 rounded-xl p-2.5 border ${STATUS_CONFIG[overall].bg}`}>
-              <STATUS_CONFIG[overall].Icon size={16} className={STATUS_CONFIG[overall].color} />
-              <div className="flex-1">
-                <p className={`text-xs font-bold ${STATUS_CONFIG[overall].color}`}>
-                  {STATUS_CONFIG[overall].label}
-                </p>
-                {overall === 'rejected' && (
-                  <p className="text-[10px] text-red-600">Consulta con tu contador antes de incluir este gasto</p>
-                )}
-                {overall === 'ok' && (
-                  <p className="text-[10px] text-green-600">El gasto parece cumplir los requisitos del Art. 31 LIR</p>
-                )}
-              </div>
-            </div>
-          )}
+          {overall && <OverallBanner overall={overall} />}
 
           {/* Criteria checklist */}
           <div className="space-y-3">
