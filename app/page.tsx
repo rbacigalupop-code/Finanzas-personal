@@ -1,65 +1,187 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Plus, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
+import AlertBanner from '@/components/AlertBanner';
+import SpendingChart from '@/components/SpendingChart';
+
+interface DashboardData {
+  income: number;
+  expenses: number;
+  balance: number;
+  spending: Array<{ id: number; name: string; color: string; icon: string; total: number }>;
+  budgets: Array<{ category_id: number; limit_amount: number }>;
+  recent: Array<{
+    id: number; type: string; amount: number; description: string; date: string;
+    category_name: string; category_icon: string; category_color: string;
+  }>;
+  month: number;
+  year: number;
+}
+
+const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+export default function Dashboard() {
+  const [data, setData] = useState<DashboardData | null>(null);
+
+  useEffect(() => {
+    fetch('/api/dashboard').then((r) => r.json()).then(setData);
+  }, []);
+
+  if (!data) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+      </div>
+    );
+  }
+
+  const savingsRate = data.income > 0 ? Math.round(((data.income - data.expenses) / data.income) * 100) : 0;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="px-4 pt-6 pb-4 space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-500">{MONTH_NAMES[data.month - 1]} {data.year}</p>
+          <h1 className="text-2xl font-bold text-gray-900">Mi Finanzas</h1>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+        <Link href="/transactions/new">
+          <button className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200 active:scale-95 transition-transform">
+            <Plus size={24} className="text-white" />
+          </button>
+        </Link>
+      </div>
+
+      {/* Alerts */}
+      <AlertBanner />
+
+      {/* Balance card */}
+      <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-3xl p-5 text-white shadow-lg">
+        <div className="flex items-center gap-2 mb-1">
+          <Wallet size={16} className="opacity-80" />
+          <p className="text-sm opacity-80">Balance del mes</p>
+        </div>
+        <p className={`text-4xl font-bold mb-4 ${data.balance < 0 ? 'text-red-200' : ''}`}>
+          ${Math.abs(data.balance).toLocaleString()}
+          {data.balance < 0 && <span className="text-lg ml-1">negativo</span>}
+        </p>
+        <div className="flex gap-4">
+          <div className="flex-1 bg-white/10 rounded-2xl p-3">
+            <div className="flex items-center gap-1 mb-1">
+              <TrendingUp size={14} className="text-green-300" />
+              <span className="text-xs opacity-80">Ingresos</span>
+            </div>
+            <p className="text-lg font-bold">${data.income.toLocaleString()}</p>
+          </div>
+          <div className="flex-1 bg-white/10 rounded-2xl p-3">
+            <div className="flex items-center gap-1 mb-1">
+              <TrendingDown size={14} className="text-red-300" />
+              <span className="text-xs opacity-80">Gastos</span>
+            </div>
+            <p className="text-lg font-bold">${data.expenses.toLocaleString()}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Savings rate */}
+      {data.income > 0 && (
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm font-medium text-gray-700">Tasa de ahorro</span>
+            <span className={`text-sm font-bold ${savingsRate >= 20 ? 'text-green-600' : savingsRate >= 10 ? 'text-amber-500' : 'text-red-500'}`}>
+              {savingsRate}%
+            </span>
+          </div>
+          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${savingsRate >= 20 ? 'bg-green-500' : savingsRate >= 10 ? 'bg-amber-400' : 'bg-red-400'}`}
+              style={{ width: `${Math.min(100, Math.max(0, savingsRate))}%` }}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
         </div>
-      </main>
+      )}
+
+      {/* Budget progress */}
+      {data.budgets.length > 0 && (
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
+          <h2 className="font-semibold text-gray-900 text-sm">Presupuesto por categoría</h2>
+          {data.spending
+            .filter((s) => data.budgets.find((b) => b.category_id === s.id))
+            .slice(0, 5)
+            .map((cat) => {
+              const budget = data.budgets.find((b) => b.category_id === cat.id);
+              if (!budget) return null;
+              const pct = Math.min(100, Math.round((cat.total / budget.limit_amount) * 100));
+              const over = cat.total > budget.limit_amount;
+              return (
+                <div key={cat.id}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs text-gray-600">{cat.icon} {cat.name}</span>
+                    <span className={`text-xs font-medium ${over ? 'text-red-600' : 'text-gray-500'}`}>
+                      ${cat.total.toLocaleString()} / ${budget.limit_amount.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${over ? 'bg-red-500' : pct >= 80 ? 'bg-amber-400' : 'bg-indigo-500'}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      )}
+
+      {/* Spending chart */}
+      {data.spending.some((s) => s.total > 0) && (
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+          <h2 className="font-semibold text-gray-900 text-sm mb-2">Distribución de gastos</h2>
+          <SpendingChart data={data.spending} />
+        </div>
+      )}
+
+      {/* Recent transactions */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="font-semibold text-gray-900 text-sm">Últimos movimientos</h2>
+          <Link href="/transactions" className="text-xs text-indigo-600 font-medium">Ver todos</Link>
+        </div>
+        {data.recent.length === 0 ? (
+          <div className="text-center py-6">
+            <p className="text-gray-400 text-sm">Sin movimientos este mes</p>
+            <Link href="/transactions/new">
+              <button className="mt-3 text-indigo-600 text-sm font-medium">+ Agregar primero</button>
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {data.recent.map((t) => (
+              <div key={t.id} className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg" style={{ backgroundColor: t.category_color + '20' }}>
+                  {t.category_icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{t.description || t.category_name}</p>
+                  <p className="text-xs text-gray-400">{t.category_name} · {new Date(t.date + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short' })}</p>
+                </div>
+                <span className={`text-sm font-bold ${t.type === 'income' ? 'text-green-600' : 'text-red-500'}`}>
+                  {t.type === 'income' ? '+' : '-'}${t.amount.toLocaleString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* FAB */}
+      <Link href="/transactions/new" className="fixed bottom-20 right-4">
+        <button className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-xl shadow-indigo-300 active:scale-95 transition-transform">
+          <Plus size={28} className="text-white" />
+        </button>
+      </Link>
     </div>
   );
 }

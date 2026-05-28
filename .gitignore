@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local data (SQLite)
+/data/
+
+# scripts
+/scripts/
+
+# claude local config
+.claude/
