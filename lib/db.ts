@@ -187,6 +187,15 @@ export async function insertTransaction(data: {
   return res.lastInsertRowid;
 }
 
+export async function updateTransaction(id: number, data: {
+  type?: string; amount?: number; category_id?: number; description?: string; date?: string;
+}) {
+  const db = getClient();
+  const fields = Object.keys(data).map((k) => `${k} = ?`).join(', ');
+  const values = Object.values(data);
+  await db.execute({ sql: `UPDATE transactions SET ${fields} WHERE id = ?`, args: [...values, id] });
+}
+
 export async function deleteTransaction(id: number) {
   const db = getClient();
   await db.execute({ sql: 'DELETE FROM transactions WHERE id = ?', args: [id] });
