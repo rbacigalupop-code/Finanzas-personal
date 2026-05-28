@@ -61,29 +61,59 @@ export default function AdvisorPage() {
     if (!text.trim() || loading) return;
     setLoading(true);
     setQuery('');
-    const res = await fetch('/api/investments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: text,
-        mode,
-        ...(mode === 'business' && activeCompany ? {
-          company_id:                activeCompany.id,
-          company_name:              activeCompany.name,
-          company_legal_type:        activeCompany.legal_type,
-          company_rut:               activeCompany.rut,
-          company_giro:              activeCompany.giro,
-          company_activity_category: activeCompany.activity_category,
-        } : {}),
-      }),
-    });
-    const data = await res.json();
-    setLoading(false);
-    setHistory((prev) => [
-      { id: Date.now(), query: text, response: data.response, created_at: new Date().toISOString() },
-      ...prev,
-    ]);
-    setExpanded(0);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 55_000); // 55s hard limit
+
+    try {
+      const res = await fetch('/api/investments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          query: text,
+          mode,
+          ...(mode === 'business' && activeCompany ? {
+            company_id:                activeCompany.id,
+            company_name:              activeCompany.name,
+            company_legal_type:        activeCompany.legal_type,
+            company_rut:               activeCompany.rut,
+            company_giro:              activeCompany.giro,
+            company_activity_category: activeCompany.activity_category,
+          } : {}),
+        }),
+      });
+
+      if (!res.ok) throw new Error(`Error ${res.status}`);
+      const data = await res.json();
+
+      if (data.response) {
+        setHistory((prev) => [
+          { id: Date.now(), query: text, response: data.response, created_at: new Date().toISOString() },
+          ...prev,
+        ]);
+        setExpanded(0);
+      } else {
+        throw new Error(data.error || 'Respuesta vacía');
+      }
+    } catch (err: any) {
+      const isTimeout = err?.name === 'AbortError';
+      setHistory((prev) => [
+        {
+          id: Date.now(),
+          query: text,
+          response: isTimeout
+            ? '⏱️ La consulta tardó demasiado. Por favor intenta de nuevo con una pregunta más específica.'
+            : `❌ Error al conectar con el asesor: ${err?.message || 'Error desconocido'}. Verifica tu conexión e intenta nuevamente.`,
+          created_at: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
+      setExpanded(0);
+    } finally {
+      clearTimeout(timeout);
+      setLoading(false); // ← siempre se ejecuta, sin importar qué pasó
+    }
   };
 
   return (
@@ -95,7 +125,7 @@ export default function AdvisorPage() {
           <h1 className="text-white font-bold text-xl">Asesor Financiero IA</h1>
         </div>
         <p className="text-white/70 text-sm mb-3">
-          Consultas personalizadas basadas en tu perfil real · acceso a internet en tiempo real
+          Consultas personalizadas basadas en tu perfil real · conocimiento financiero chileno actualizado
         </p>
         {/* Mode toggle */}
         <div className="flex bg-white/15 rounded-xl p-0.5 gap-0.5 w-fit">
@@ -166,7 +196,7 @@ export default function AdvisorPage() {
             <Loader2 size={20} className="text-indigo-500 animate-spin shrink-0" />
             <div>
               <p className="text-sm font-medium text-gray-700">Analizando tu situación financiera...</p>
-              <p className="text-xs text-gray-400">Buscando información actualizada y evaluando tu perfil</p>
+              <p className="text-xs text-gray-400">Claude está procesando tu consulta · puede tomar 10–30 segundos</p>
             </div>
           </div>
         )}

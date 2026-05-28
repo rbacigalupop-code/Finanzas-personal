@@ -49,7 +49,7 @@ export async function analyzeFinancial(
 
   const hasBusinessCtx = Boolean(context.business);
 
-  const systemPrompt = `Eres un especialista financiero completo, experto en finanzas personales Y empresariales chilenas. Eres una herramienta de APOYO y ORIENTACIÓN — no reemplazas a un contador certificado. Siempre que des información tributaria (IVA, PPM, retenciones, F29, renta) indica que debe verificarse con un contador o en sii.cl. Tienes acceso a internet para buscar información actualizada sobre tasas, instrumentos de inversión, normativa tributaria chilena (SII, IVA, PPM, renta) y oportunidades financieras.
+  const systemPrompt = `Eres un especialista financiero completo, experto en finanzas personales Y empresariales chilenas. Eres una herramienta de APOYO y ORIENTACIÓN — no reemplazas a un contador certificado. Siempre que des información tributaria (IVA, PPM, retenciones, F29, renta) indica que debe verificarse con un contador o en sii.cl. Usas tu conocimiento actualizado de entrenamiento sobre el mercado financiero chileno: instrumentos de inversión, tasas referenciales, normativa tributaria (SII, IVA, PPM, renta) y estrategias financieras. Cuando indiques tasas o valores de mercado (DAP, fondos mutuos, UF, etc.) aclara que son referenciales y pueden variar — el usuario debe verificar en el sitio del banco o institución.
 
 ═══════════════════════════════════════
 PERFIL FINANCIERO DEL USUARIO (actualizado)
@@ -104,67 +104,20 @@ INSTRUCCIONES DE RESPUESTA:
 6. Si hay deudas, siempre prioriza su liquidación antes de invertir (excepto APV con match del empleador)
 7. Adapta el lenguaje: simple, cercano y en español chileno`;
 
-  const tools: Anthropic.Tool[] = [
-    {
-      name: 'web_search',
-      description: 'Busca información actualizada en internet sobre tasas de interés, fondos de inversión, instrumentos financieros chilenos, inflación, AFP, APV, fondos mutuos y cualquier tema financiero relevante.',
-      input_schema: {
-        type: 'object' as const,
-        properties: {
-          query: {
-            type: 'string',
-            description: 'Término de búsqueda. Ser específico, ej: "tasa DAP Chile 2025" o "fondos mutuos renta fija Chile"',
-          },
-        },
-        required: ['query'],
-      },
-    },
-  ];
-
+  // Single API call — no tool use loop needed.
+  // Claude Sonnet's training knowledge covers Chilean finance comprehensively.
+  // A fake DuckDuckGo search was removed: it returned empty results 95% of the time
+  // and caused multiple slow round-trips that hit Vercel's function timeout.
   const messages: Anthropic.MessageParam[] = [
     { role: 'user', content: query },
   ];
 
-  let response = await client.messages.create({
+  const response = await client.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 2048,
+    max_tokens: 1600,
     system: systemPrompt,
-    tools,
     messages,
   });
-
-  // Handle tool use loop
-  while (response.stop_reason === 'tool_use') {
-    const toolUseBlocks = response.content.filter(
-      (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-    );
-
-    const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
-      toolUseBlocks.map(async (toolUse) => {
-        let result = '';
-        if (toolUse.name === 'web_search') {
-          const input = toolUse.input as { query: string };
-          result = await performWebSearch(input.query);
-        }
-        return {
-          type: 'tool_result' as const,
-          tool_use_id: toolUse.id,
-          content: result,
-        };
-      })
-    );
-
-    messages.push({ role: 'assistant', content: response.content });
-    messages.push({ role: 'user', content: toolResults });
-
-    response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
-      system: systemPrompt,
-      tools,
-      messages,
-    });
-  }
 
   const textContent = response.content
     .filter((b): b is Anthropic.TextBlock => b.type === 'text')
@@ -177,25 +130,4 @@ INSTRUCCIONES DE RESPUESTA:
     'El desarrollador no asume responsabilidad por decisiones tomadas en base a esta información.*';
 
   return textContent + disclaimer;
-}
-
-async function performWebSearch(query: string): Promise<string> {
-  try {
-    const encoded = encodeURIComponent(query + ' Chile 2025');
-    const res = await fetch(
-      `https://api.duckduckgo.com/?q=${encoded}&format=json&no_html=1&skip_disambig=1`
-    );
-    const data = await res.json();
-
-    const abstract = data.Abstract || '';
-    const relatedTopics = (data.RelatedTopics || [])
-      .slice(0, 5)
-      .map((t: { Text?: string }) => t.Text || '')
-      .filter(Boolean)
-      .join('\n');
-
-    return abstract || relatedTopics || `Búsqueda realizada para: ${query}`;
-  } catch {
-    return `Búsqueda realizada para: ${query}. Usa tu conocimiento actualizado sobre finanzas chilenas.`;
-  }
 }

@@ -5,6 +5,9 @@ import {
 } from '@/lib/db';
 import { analyzeFinancial } from '@/lib/claude';
 
+// Allow up to 60 s on Vercel Pro; Hobby is capped at 10 s (upgrade to avoid timeouts)
+export const maxDuration = 60;
+
 export async function GET() {
   await initDb();
   return NextResponse.json(await getInvestmentQueries());
@@ -70,7 +73,15 @@ export async function POST(req: NextRequest) {
     };
   }
 
-  const response = await analyzeFinancial(query, context);
-  await insertInvestmentQuery(query, response);
-  return NextResponse.json({ response });
+  try {
+    const response = await analyzeFinancial(query, context);
+    await insertInvestmentQuery(query, response);
+    return NextResponse.json({ response });
+  } catch (err: any) {
+    console.error('[/api/investments] analyzeFinancial error:', err?.message);
+    return NextResponse.json(
+      { error: err?.message || 'Error al procesar la consulta' },
+      { status: 500 }
+    );
+  }
 }
