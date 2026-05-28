@@ -1,22 +1,24 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import {
   initDb, getBusinessMonthlySummary, getBusinessSpendingByCategory,
-  getBusinessTransactions, getTaxPeriod,
+  getBusinessTransactions, getTaxPeriod, getCompany,
 } from '@/lib/db';
 
-const IVA_RATE = 0.19;
-
-export async function GET() {
+export async function GET(req: NextRequest) {
   await initDb();
+  const { searchParams } = new URL(req.url);
+  const companyId = Number(searchParams.get('company_id') || 1);
+
   const now = new Date();
-  const year = now.getFullYear();
+  const year  = now.getFullYear();
   const month = now.getMonth() + 1;
 
-  const [summary, spending, transactions, taxPeriod] = await Promise.all([
-    getBusinessMonthlySummary(year, month),
-    getBusinessSpendingByCategory(year, month),
-    getBusinessTransactions(year, month),
-    getTaxPeriod(year, month),
+  const [company, summary, spending, transactions, taxPeriod] = await Promise.all([
+    getCompany(companyId),
+    getBusinessMonthlySummary(year, month, companyId),
+    getBusinessSpendingByCategory(year, month, companyId),
+    getBusinessTransactions(year, month, companyId),
+    getTaxPeriod(year, month, companyId),
   ]);
 
   const incomeNet   = Number(summary.income_net   || 0);
@@ -30,19 +32,19 @@ export async function GET() {
   const ppmAmount   = Math.round(incomeNet * (ppmRate / 100));
 
   return NextResponse.json({
+    company,
     year, month,
-    incomeNet: Math.round(incomeNet),
+    incomeNet:   Math.round(incomeNet),
     incomeGross: Math.round(incomeGross),
-    expenseNet: Math.round(expenseNet),
-    netProfit: Math.round(incomeNet - expenseNet),
+    expenseNet:  Math.round(expenseNet),
+    netProfit:   Math.round(incomeNet - expenseNet),
     grossMargin: Math.round(grossMargin),
-    ivaDebito: Math.round(ivaDebito),
-    ivaCredito: Math.round(ivaCredito),
-    ivaNet: Math.round(ivaNet),
+    ivaDebito:   Math.round(ivaDebito),
+    ivaCredito:  Math.round(ivaCredito),
+    ivaNet:      Math.round(ivaNet),
     ppmRate,
     ppmAmount,
-    spending: spending.filter((s: any) => Number(s.total) > 0),
-    recent: (transactions as any[]).slice(0, 5),
-    IVA_RATE,
+    spending:    spending.filter((s: any) => Number(s.total) > 0),
+    recent:      (transactions as any[]).slice(0, 5),
   });
 }

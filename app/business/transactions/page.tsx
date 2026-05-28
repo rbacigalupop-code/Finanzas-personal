@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Plus, Search, ChevronRight, X, Check, Trash2, Receipt } from 'lucide-react';
+import { useCompany } from '@/hooks/useCompany';
+import CompanySelector from '@/components/CompanySelector';
 
 interface BizTx {
   id: number; type: 'income' | 'expense';
@@ -246,6 +248,7 @@ function TxForm({
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function BusinessTransactionsPage() {
+  const { activeCompany } = useCompany();
   const [transactions, setTransactions] = useState<BizTx[]>([]);
   const [search, setSearch]             = useState('');
   const [filter, setFilter]             = useState<'all' | 'income' | 'expense'>('all');
@@ -253,8 +256,9 @@ export default function BusinessTransactionsPage() {
   const [editing, setEditing]           = useState<BizTx | null>(null);
 
   const load = useCallback(() => {
-    fetch('/api/business/transactions?limit=200').then((r) => r.json()).then(setTransactions);
-  }, []);
+    if (!activeCompany) return;
+    fetch(`/api/business/transactions?company_id=${activeCompany.id}`).then((r) => r.json()).then(setTransactions);
+  }, [activeCompany]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -276,7 +280,7 @@ export default function BusinessTransactionsPage() {
     await fetch('/api/business/transactions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, company_id: activeCompany?.id }),
     });
     load();
   }
@@ -301,14 +305,19 @@ export default function BusinessTransactionsPage() {
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       {/* Header */}
-      <div className="bg-gradient-to-br from-emerald-600 to-teal-700 px-4 pt-12 pb-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-white font-bold text-xl">Transacciones</h1>
+      <div className="px-4 pt-12 pb-4" style={{
+        background: activeCompany
+          ? `linear-gradient(135deg, ${activeCompany.color}dd, ${activeCompany.color}99)`
+          : 'linear-gradient(135deg, #10b981dd, #10b98199)'
+      }}>
+        <div className="flex items-center justify-between mb-3">
+          {activeCompany ? <CompanySelector /> : <h1 className="text-white font-bold text-xl">Transacciones</h1>}
           <button onClick={() => setShowNew(true)}
             className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center active:scale-95">
             <Plus size={20} className="text-white" />
           </button>
         </div>
+        <p className="text-white/70 text-sm font-medium">Transacciones</p>
       </div>
 
       <div className="px-4 pt-4 space-y-3">

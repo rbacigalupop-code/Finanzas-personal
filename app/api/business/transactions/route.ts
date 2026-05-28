@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initDb, getAllBusinessTransactions, getBusinessTransactions, insertBusinessTransaction, getBusinessCategories } from '@/lib/db';
+import {
+  initDb, getAllBusinessTransactions, getBusinessTransactions,
+  insertBusinessTransaction, getBusinessCategories,
+} from '@/lib/db';
 
 const IVA = 0.19;
 
 export async function GET(req: NextRequest) {
   await initDb();
   const { searchParams } = new URL(req.url);
-  const year  = searchParams.get('year');
-  const month = searchParams.get('month');
+  const companyId     = Number(searchParams.get('company_id') || 1);
+  const year          = searchParams.get('year');
+  const month         = searchParams.get('month');
   const categoriesOnly = searchParams.get('categories');
 
   if (categoriesOnly) {
@@ -15,43 +19,38 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(await getBusinessCategories(type));
   }
   if (year && month) {
-    return NextResponse.json(await getBusinessTransactions(Number(year), Number(month)));
+    return NextResponse.json(await getBusinessTransactions(Number(year), Number(month), companyId));
   }
-  return NextResponse.json(await getAllBusinessTransactions(200));
+  return NextResponse.json(await getAllBusinessTransactions(companyId));
 }
 
 export async function POST(req: NextRequest) {
   await initDb();
   const body = await req.json();
-  const { type, amount, amount_type, has_iva, category_id, description, date, document_type } = body;
+  const { type, amount, amount_type, has_iva, category_id, description, date, document_type, company_id } = body;
 
-  if (!type || !amount || !date) {
+  if (!type || !amount || !date || !company_id) {
     return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 });
   }
 
-  const raw = Number(amount);
+  const raw      = Number(amount);
   const applyIva = has_iva ? 1 : 0;
 
-  let net_amount: number;
-  let gross_amount: number;
-  let tax_amount: number;
+  let net_amount: number, gross_amount: number, tax_amount: number;
 
   if (applyIva) {
     if (amount_type === 'gross') {
-      // User entered bruto (con IVA)
       gross_amount = raw;
       net_amount   = raw / (1 + IVA);
       tax_amount   = raw - net_amount;
     } else {
-      // User entered neto (sin IVA) — default
       net_amount   = raw;
       gross_amount = raw * (1 + IVA);
       tax_amount   = raw * IVA;
     }
   } else {
-    net_amount   = raw;
-    gross_amount = raw;
-    tax_amount   = 0;
+    net_amount = gross_amount = raw;
+    tax_amount = 0;
   }
 
   const id = await insertBusinessTransaction({
@@ -64,6 +63,7 @@ export async function POST(req: NextRequest) {
     description:  description || '',
     date,
     document_type: document_type || (applyIva ? 'factura' : 'boleta'),
+    company_id:   Number(company_id),
   });
 
   return NextResponse.json({ id }, { status: 201 });

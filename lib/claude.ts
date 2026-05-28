@@ -18,6 +18,9 @@ export interface FinancialContext {
   debtToIncomeRatio?: number;
   // Business context (optional)
   business?: {
+    companyName?: string;
+    legalType?: string;
+    rut?: string;
     incomeNet: number;
     expenseNet: number;
     netProfit: number;
@@ -63,6 +66,7 @@ ${hasBusinessCtx ? `
 ═══════════════════════════════════════
 PERFIL EMPRESARIAL (mes actual)
 ═══════════════════════════════════════
+🏢 Empresa:                 ${context.business!.companyName ?? 'Sin nombre'} ${context.business!.legalType ? `(${context.business!.legalType})` : ''}${context.business!.rut ? ` · RUT ${context.business!.rut}` : ''}
 📈 Ingresos netos empresa:  $${context.business!.incomeNet.toLocaleString('es-CL')}
 📉 Gastos netos empresa:    $${context.business!.expenseNet.toLocaleString('es-CL')}
 💹 Resultado neto:          $${context.business!.netProfit.toLocaleString('es-CL')}

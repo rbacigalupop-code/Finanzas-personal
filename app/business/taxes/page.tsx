@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { Receipt, CheckCircle, Clock, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { useCompany } from '@/hooks/useCompany';
+import CompanySelector from '@/components/CompanySelector';
 
 interface TaxData {
   year: number; month: number;
@@ -18,6 +20,7 @@ const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto
 const fmt = (n: number) => Math.abs(Math.round(n)).toLocaleString('es-CL');
 
 export default function TaxesPage() {
+  const { activeCompany } = useCompany();
   const now = new Date();
   const [selYear, setSelYear]   = useState(now.getFullYear());
   const [selMonth, setSelMonth] = useState(now.getMonth() + 1);
@@ -28,29 +31,31 @@ export default function TaxesPage() {
   const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/business/taxes?year=${selYear}&month=${selMonth}`)
+    if (!activeCompany) return;
+    fetch(`/api/business/taxes?year=${selYear}&month=${selMonth}&company_id=${activeCompany.id}`)
       .then((r) => r.json())
       .then((d: TaxData) => {
         setData(d);
         setPpmInput(String(d.ppmRate));
         setNotes(d.notes || '');
       });
-  }, [selYear, selMonth]);
+  }, [selYear, selMonth, activeCompany]);
 
   async function savePeriod(isDeclared?: number) {
+    if (!activeCompany) return;
     setSaving(true);
     await fetch('/api/business/taxes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         year: selYear, month: selMonth,
+        company_id: activeCompany.id,
         ppm_rate: parseFloat(ppmInput) || 1.0,
         is_declared: isDeclared !== undefined ? isDeclared : data?.isDeclared,
         notes,
       }),
     });
-    // Refresh
-    const d = await fetch(`/api/business/taxes?year=${selYear}&month=${selMonth}`).then((r) => r.json());
+    const d = await fetch(`/api/business/taxes?year=${selYear}&month=${selMonth}&company_id=${activeCompany.id}`).then((r) => r.json());
     setData(d);
     setSaving(false);
   }
@@ -70,9 +75,17 @@ export default function TaxesPage() {
     <div className="min-h-screen bg-gray-50 pb-24">
       {/* Header */}
       <div className="bg-gradient-to-br from-amber-500 to-orange-600 px-4 pt-12 pb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Receipt size={22} className="text-white/90" />
-          <h1 className="text-white font-bold text-xl">Impuestos</h1>
+        <div className="flex items-center justify-between mb-4">
+          {activeCompany ? <CompanySelector /> : (
+            <div className="flex items-center gap-2">
+              <Receipt size={22} className="text-white/90" />
+              <h1 className="text-white font-bold text-xl">Impuestos</h1>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2 mb-3">
+          <Receipt size={16} className="text-white/70" />
+          <p className="text-white font-semibold">Impuestos</p>
         </div>
 
         {/* Month selector */}

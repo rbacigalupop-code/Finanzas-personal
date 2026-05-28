@@ -97,6 +97,16 @@ export async function initDb() {
       is_active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS companies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      legal_type TEXT NOT NULL DEFAULT 'SPA',
+      rut TEXT,
+      color TEXT NOT NULL DEFAULT '#10b981',
+      icon TEXT NOT NULL DEFAULT '🏢',
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
     CREATE TABLE IF NOT EXISTS business_categories (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -131,6 +141,18 @@ export async function initDb() {
 
   await seedCategories(db);
   await seedBusinessCategories(db);
+  await migrateCompanyId(db);
+}
+
+/** Adds company_id column to existing tables if not yet present */
+async function migrateCompanyId(db: Client) {
+  const migrations = [
+    `ALTER TABLE business_transactions ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE tax_periods ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1`,
+  ];
+  for (const sql of migrations) {
+    try { await db.execute(sql); } catch { /* column already exists – ignore */ }
+  }
 }
 
 const BUSINESS_CATEGORIES = [
@@ -545,6 +567,47 @@ export async function getMonthlyRecurringTotal() {
   return Number((res.rows[0] as any).total);
 }
 
+// ── Companies ─────────────────────────────────────────────────────────────────
+export async function getCompanies() {
+  const db = getClient();
+  const res = await db.execute('SELECT * FROM companies ORDER BY created_at ASC');
+  return toArr(res.rows);
+}
+
+export async function getCompany(id: number) {
+  const db = getClient();
+  const res = await db.execute({ sql: 'SELECT * FROM companies WHERE id = ?', args: [id] });
+  return res.rows[0] ? { ...res.rows[0] } : null;
+}
+
+export async function insertCompany(data: {
+  name: string; legal_type: string; rut?: string; color: string; icon: string;
+}) {
+  const db = getClient();
+  const res = await db.execute({
+    sql: `INSERT INTO companies (name, legal_type, rut, color, icon) VALUES (?, ?, ?, ?, ?)`,
+    args: [data.name, data.legal_type, data.rut ?? null, data.color, data.icon],
+  });
+  return Number(res.lastInsertRowid);
+}
+
+export async function updateCompany(id: number, data: Partial<{
+  name: string; legal_type: string; rut: string; color: string; icon: string; is_active: number;
+}>) {
+  const db = getClient();
+  const fields = Object.keys(data).map((k) => `${k} = ?`).join(', ');
+  await db.execute({ sql: `UPDATE companies SET ${fields} WHERE id = ?`, args: [...Object.values(data), id] });
+}
+
+export async function deleteCompany(id: number) {
+  const db = getClient();
+  await db.batch([
+    { sql: 'DELETE FROM business_transactions WHERE company_id = ?', args: [id] },
+    { sql: 'DELETE FROM tax_periods WHERE company_id = ?', args: [id] },
+    { sql: 'DELETE FROM companies WHERE id = ?', args: [id] },
+  ], 'write');
+}
+
 // ── Business Categories ───────────────────────────────────────────────────────
 export async function getBusinessCategories(type?: string) {
   const db = getClient();
@@ -555,28 +618,29 @@ export async function getBusinessCategories(type?: string) {
 }
 
 // ── Business Transactions ─────────────────────────────────────────────────────
-export async function getBusinessTransactions(year: number, month: number) {
+export async function getBusinessTransactions(year: number, month: number, companyId: number) {
   const db = getClient();
   const monthStr = String(month).padStart(2, '0');
   const res = await db.execute({
     sql: `SELECT bt.*, bc.name as category_name, bc.color as category_color, bc.icon as category_icon
           FROM business_transactions bt
           LEFT JOIN business_categories bc ON bt.category_id = bc.id
-          WHERE strftime('%Y-%m', bt.date) = ?
+          WHERE strftime('%Y-%m', bt.date) = ? AND bt.company_id = ?
           ORDER BY bt.date DESC, bt.created_at DESC`,
-    args: [`${year}-${monthStr}`],
+    args: [`${year}-${monthStr}`, companyId],
   });
   return toArr(res.rows);
 }
 
-export async function getAllBusinessTransactions(limit = 100) {
+export async function getAllBusinessTransactions(companyId: number, limit = 200) {
   const db = getClient();
   const res = await db.execute({
     sql: `SELECT bt.*, bc.name as category_name, bc.color as category_color, bc.icon as category_icon
           FROM business_transactions bt
           LEFT JOIN business_categories bc ON bt.category_id = bc.id
+          WHERE bt.company_id = ?
           ORDER BY bt.date DESC, bt.created_at DESC LIMIT ?`,
-    args: [limit],
+    args: [companyId, limit],
   });
   return toArr(res.rows);
 }
@@ -584,17 +648,17 @@ export async function getAllBusinessTransactions(limit = 100) {
 export async function insertBusinessTransaction(data: {
   type: string; gross_amount: number; net_amount: number; tax_amount: number;
   has_iva: number; category_id?: number; description?: string;
-  date: string; document_type: string;
+  date: string; document_type: string; company_id: number;
 }) {
   const db = getClient();
   const res = await db.execute({
     sql: `INSERT INTO business_transactions
-            (type, gross_amount, net_amount, tax_amount, has_iva, category_id, description, date, document_type)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (type, gross_amount, net_amount, tax_amount, has_iva, category_id, description, date, document_type, company_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       data.type, data.gross_amount, data.net_amount, data.tax_amount,
       data.has_iva, data.category_id ?? null, data.description ?? '',
-      data.date, data.document_type,
+      data.date, data.document_type, data.company_id,
     ],
   });
   return res.lastInsertRowid;
@@ -616,7 +680,7 @@ export async function deleteBusinessTransaction(id: number) {
 }
 
 // ── Business Summary ──────────────────────────────────────────────────────────
-export async function getBusinessMonthlySummary(year: number, month: number) {
+export async function getBusinessMonthlySummary(year: number, month: number, companyId: number) {
   const db = getClient();
   const monthStr = String(month).padStart(2, '0');
   const ym = `${year}-${monthStr}`;
@@ -630,13 +694,13 @@ export async function getBusinessMonthlySummary(year: number, month: number) {
             COALESCE(SUM(CASE WHEN type='income'  AND has_iva=1 THEN tax_amount ELSE 0 END), 0) AS iva_debito,
             COALESCE(SUM(CASE WHEN type='expense' AND has_iva=1 THEN tax_amount ELSE 0 END), 0) AS iva_credito
           FROM business_transactions
-          WHERE strftime('%Y-%m', date) = ?`,
-    args: [ym],
+          WHERE strftime('%Y-%m', date) = ? AND company_id = ?`,
+    args: [ym, companyId],
   });
   return { ...res.rows[0] } as any;
 }
 
-export async function getBusinessSpendingByCategory(year: number, month: number) {
+export async function getBusinessSpendingByCategory(year: number, month: number, companyId: number) {
   const db = getClient();
   const monthStr = String(month).padStart(2, '0');
   const res = await db.execute({
@@ -644,15 +708,15 @@ export async function getBusinessSpendingByCategory(year: number, month: number)
                  COALESCE(SUM(bt.net_amount), 0) as total
           FROM business_categories bc
           LEFT JOIN business_transactions bt ON bt.category_id = bc.id
-            AND strftime('%Y-%m', bt.date) = ? AND bt.type = 'expense'
+            AND strftime('%Y-%m', bt.date) = ? AND bt.type = 'expense' AND bt.company_id = ?
           WHERE bc.type = 'expense'
           GROUP BY bc.id ORDER BY total DESC`,
-    args: [`${year}-${monthStr}`],
+    args: [`${year}-${monthStr}`, companyId],
   });
   return toArr(res.rows);
 }
 
-export async function getBusinessMonthlyHistory(months = 6) {
+export async function getBusinessMonthlyHistory(companyId: number, months = 6) {
   const db = getClient();
   const res = await db.execute({
     sql: `SELECT strftime('%Y-%m', date) as month,
@@ -661,39 +725,39 @@ export async function getBusinessMonthlyHistory(months = 6) {
                  SUM(CASE WHEN type='income' AND has_iva=1 THEN tax_amount ELSE 0 END) as iva_debito,
                  SUM(CASE WHEN type='expense' AND has_iva=1 THEN tax_amount ELSE 0 END) as iva_credito
           FROM business_transactions
-          WHERE date >= date('now', '-' || ? || ' months')
+          WHERE date >= date('now', '-' || ? || ' months') AND company_id = ?
           GROUP BY month ORDER BY month ASC`,
-    args: [months],
+    args: [months, companyId],
   });
   return toArr(res.rows);
 }
 
 // ── Tax Periods ───────────────────────────────────────────────────────────────
-export async function getTaxPeriod(year: number, month: number) {
+export async function getTaxPeriod(year: number, month: number, companyId: number) {
   const db = getClient();
   const res = await db.execute({
-    sql: 'SELECT * FROM tax_periods WHERE year = ? AND month = ?',
-    args: [year, month],
+    sql: 'SELECT * FROM tax_periods WHERE year = ? AND month = ? AND company_id = ?',
+    args: [year, month, companyId],
   });
   return res.rows[0] ? { ...res.rows[0] } : null;
 }
 
-export async function upsertTaxPeriod(year: number, month: number, data: {
+export async function upsertTaxPeriod(year: number, month: number, companyId: number, data: {
   ppm_rate?: number; is_declared?: number; notes?: string;
 }) {
   const db = getClient();
   await db.execute({
-    sql: `INSERT INTO tax_periods (year, month, ppm_rate, is_declared, notes)
-          VALUES (?, ?, ?, ?, ?)
+    sql: `INSERT INTO tax_periods (year, month, company_id, ppm_rate, is_declared, notes)
+          VALUES (?, ?, ?, ?, ?, ?)
           ON CONFLICT(month, year) DO UPDATE SET
             ppm_rate    = COALESCE(excluded.ppm_rate, ppm_rate),
             is_declared = COALESCE(excluded.is_declared, is_declared),
             notes       = COALESCE(excluded.notes, notes)`,
-    args: [year, month, data.ppm_rate ?? 1.0, data.is_declared ?? 0, data.notes ?? null],
+    args: [year, month, companyId, data.ppm_rate ?? 1.0, data.is_declared ?? 0, data.notes ?? null],
   });
 }
 
-export async function getTaxYearSummary(year: number) {
+export async function getTaxYearSummary(year: number, companyId: number) {
   const db = getClient();
   const res = await db.execute({
     sql: `SELECT
@@ -702,9 +766,9 @@ export async function getTaxYearSummary(year: number) {
             SUM(CASE WHEN type='expense' AND has_iva=1 THEN tax_amount ELSE 0 END) AS iva_credito,
             SUM(CASE WHEN type='income' THEN net_amount ELSE 0 END)                AS net_income
           FROM business_transactions
-          WHERE strftime('%Y', date) = ?
+          WHERE strftime('%Y', date) = ? AND company_id = ?
           GROUP BY month ORDER BY month ASC`,
-    args: [String(year)],
+    args: [String(year), companyId],
   });
   return toArr(res.rows);
 }

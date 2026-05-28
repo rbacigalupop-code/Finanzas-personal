@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { Send, BrainCircuit, ChevronDown, ChevronUp, Loader2, User, Building2 } from 'lucide-react';
+import { useCompany } from '@/hooks/useCompany';
 
 interface FinancialQuery {
   id: number;
@@ -46,6 +47,7 @@ export default function AdvisorPage() {
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [mode, setMode]     = useState<'personal' | 'business'>('personal');
+  const { activeCompany }   = useCompany();
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const SUGGESTIONS = mode === 'business' ? BUSINESS_SUGGESTIONS : PERSONAL_SUGGESTIONS;
@@ -62,7 +64,16 @@ export default function AdvisorPage() {
     const res = await fetch('/api/investments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: text, mode }),
+      body: JSON.stringify({
+        query: text,
+        mode,
+        ...(mode === 'business' && activeCompany ? {
+          company_id:         activeCompany.id,
+          company_name:       activeCompany.name,
+          company_legal_type: activeCompany.legal_type,
+          company_rut:        activeCompany.rut,
+        } : {}),
+      }),
     });
     const data = await res.json();
     setLoading(false);

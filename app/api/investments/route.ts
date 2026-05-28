@@ -12,18 +12,21 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   await initDb();
-  const { query, mode } = await req.json();
+  const body = await req.json();
+  const { query, mode, company_id: bodyCompanyId, company_name, company_legal_type, company_rut } = body;
   if (!query?.trim()) return NextResponse.json({ error: 'Query requerida' }, { status: 400 });
 
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
 
+  const companyId = Number(bodyCompanyId || 1);
+
   const [history, debts, monthlyRecurring, bizSummary] = await Promise.all([
     getMonthlySummary(3) as Promise<any[]>,
     getDebts() as Promise<any[]>,
     getMonthlyRecurringTotal(),
-    mode === 'business' ? getBusinessMonthlySummary(year, month) : Promise.resolve(null),
+    mode === 'business' ? getBusinessMonthlySummary(year, month, companyId) : Promise.resolve(null),
   ]);
 
   const avgIncome   = history.length ? history.reduce((a, h) => a + Number(h.income), 0)   / history.length : 0;
@@ -50,15 +53,18 @@ export async function POST(req: NextRequest) {
     const incomeNet  = Number(bizSummary.income_net  || 0);
     const expenseNet = Number(bizSummary.expense_net || 0);
     context.business = {
-      incomeNet:   Math.round(incomeNet),
-      expenseNet:  Math.round(expenseNet),
-      netProfit:   Math.round(incomeNet - expenseNet),
-      grossMargin: incomeNet > 0 ? Math.round(((incomeNet - expenseNet) / incomeNet) * 100) : 0,
-      ivaDebito:   Math.round(Number(bizSummary.iva_debito  || 0)),
-      ivaCredito:  Math.round(Number(bizSummary.iva_credito || 0)),
-      ivaNet:      Math.round(Number(bizSummary.iva_debito  || 0) - Number(bizSummary.iva_credito || 0)),
-      ppmRate:     1.0,
-      ppmAmount:   Math.round(incomeNet * 0.01),
+      companyName:  company_name   || undefined,
+      legalType:    company_legal_type || undefined,
+      rut:          company_rut    || undefined,
+      incomeNet:    Math.round(incomeNet),
+      expenseNet:   Math.round(expenseNet),
+      netProfit:    Math.round(incomeNet - expenseNet),
+      grossMargin:  incomeNet > 0 ? Math.round(((incomeNet - expenseNet) / incomeNet) * 100) : 0,
+      ivaDebito:    Math.round(Number(bizSummary.iva_debito  || 0)),
+      ivaCredito:   Math.round(Number(bizSummary.iva_credito || 0)),
+      ivaNet:       Math.round(Number(bizSummary.iva_debito  || 0) - Number(bizSummary.iva_credito || 0)),
+      ppmRate:      1.0,
+      ppmAmount:    Math.round(incomeNet * 0.01),
     };
   }
 
