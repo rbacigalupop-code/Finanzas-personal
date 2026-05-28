@@ -5,30 +5,39 @@ import {
 } from '@/lib/db';
 import { analyzeFinancial } from '@/lib/claude';
 
-// Allow up to 60 s on Vercel Pro; Hobby is capped at 10 s (upgrade to avoid timeouts)
 export const maxDuration = 60;
 
-export async function GET() {
+function getUserId(req: NextRequest) {
+  return parseInt(req.headers.get('x-user-id') ?? '0') || 1;
+}
+
+export async function GET(req: NextRequest) {
   await initDb();
-  return NextResponse.json(await getInvestmentQueries());
+  const userId = getUserId(req);
+  return NextResponse.json(await getInvestmentQueries(userId));
 }
 
 export async function POST(req: NextRequest) {
   await initDb();
+  const userId = getUserId(req);
   const body = await req.json();
-  const { query, mode, company_id: bodyCompanyId, company_name, company_legal_type, company_rut, company_giro, company_activity_category } = body;
+  const {
+    query, mode, company_id: bodyCompanyId,
+    company_name, company_legal_type, company_rut,
+    company_giro, company_activity_category,
+  } = body;
+
   if (!query?.trim()) return NextResponse.json({ error: 'Query requerida' }, { status: 400 });
 
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
-
+  const now       = new Date();
+  const year      = now.getFullYear();
+  const month     = now.getMonth() + 1;
   const companyId = Number(bodyCompanyId || 1);
 
   const [history, debts, monthlyRecurring, bizSummary] = await Promise.all([
-    getMonthlySummary(3) as Promise<any[]>,
-    getDebts() as Promise<any[]>,
-    getMonthlyRecurringTotal(),
+    getMonthlySummary(userId, 3) as Promise<any[]>,
+    getDebts(userId)             as Promise<any[]>,
+    getMonthlyRecurringTotal(userId),
     mode === 'business' ? getBusinessMonthlySummary(year, month, companyId) : Promise.resolve(null),
   ]);
 
@@ -40,26 +49,26 @@ export async function POST(req: NextRequest) {
   const totalMinPayments = debts.reduce((s: number, d: any) => s + Number(d.minimum_payment), 0);
 
   const context: any = {
-    monthlyIncome:     Math.round(avgIncome),
-    monthlyExpenses:   Math.round(avgExpenses),
-    monthlySavings:    Math.round(monthlySavings),
+    monthlyIncome:      Math.round(avgIncome),
+    monthlyExpenses:    Math.round(avgExpenses),
+    monthlySavings:     Math.round(monthlySavings),
     projectedSavings3m: Math.round(monthlySavings * 3),
     projectedSavings6m: Math.round(monthlySavings * 6),
-    totalDebt:         Math.round(totalDebt),
-    totalMinPayments:  Math.round(totalMinPayments),
-    debtCount:         debts.length,
-    monthlyRecurring:  Math.round(monthlyRecurring),
-    savingsRate:       avgIncome > 0 ? Math.round((monthlySavings / avgIncome) * 100) : 0,
+    totalDebt:          Math.round(totalDebt),
+    totalMinPayments:   Math.round(totalMinPayments),
+    debtCount:          debts.length,
+    monthlyRecurring:   Math.round(monthlyRecurring),
+    savingsRate:        avgIncome > 0 ? Math.round((monthlySavings / avgIncome) * 100) : 0,
   };
 
   if (bizSummary) {
     const incomeNet  = Number(bizSummary.income_net  || 0);
     const expenseNet = Number(bizSummary.expense_net || 0);
     context.business = {
-      companyName:      company_name             || undefined,
-      legalType:        company_legal_type       || undefined,
-      rut:              company_rut              || undefined,
-      giro:             company_giro             || undefined,
+      companyName:      company_name              || undefined,
+      legalType:        company_legal_type        || undefined,
+      rut:              company_rut               || undefined,
+      giro:             company_giro              || undefined,
       activityCategory: company_activity_category || undefined,
       incomeNet:    Math.round(incomeNet),
       expenseNet:   Math.round(expenseNet),
@@ -75,13 +84,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const response = await analyzeFinancial(query, context);
-    await insertInvestmentQuery(query, response);
+    await insertInvestmentQuery(userId, query, response);
     return NextResponse.json({ response });
   } catch (err: any) {
-    console.error('[/api/investments] analyzeFinancial error:', err?.message);
-    return NextResponse.json(
-      { error: err?.message || 'Error al procesar la consulta' },
-      { status: 500 }
-    );
+    console.error('[/api/investments] error:', err?.message);
+    return NextResponse.json({ error: err?.message || 'Error al procesar' }, { status: 500 });
   }
 }

@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import BottomNav from '@/components/BottomNav';
 import FloatingAdvisorButton from '@/components/FloatingAdvisorButton';
+import UserHeader from '@/components/UserHeader';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className={`${inter.className} bg-gray-50 min-h-screen`}>
+        <UserHeader />
         <main className="max-w-md mx-auto min-h-screen pb-20">
           {children}
         </main>

@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initDb, getCompanies, getCompany, insertCompany, updateCompany, deleteCompany } from '@/lib/db';
 
+function getUserId(req: NextRequest) {
+  return parseInt(req.headers.get('x-user-id') ?? '0') || 1;
+}
+
 export async function GET(req: NextRequest) {
   await initDb();
+  const userId = getUserId(req);
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
   if (id) {
@@ -10,20 +15,22 @@ export async function GET(req: NextRequest) {
     if (!company) return NextResponse.json({ error: 'No encontrada' }, { status: 404 });
     return NextResponse.json(company);
   }
-  return NextResponse.json(await getCompanies());
+  return NextResponse.json(await getCompanies(userId));
 }
 
 export async function POST(req: NextRequest) {
   await initDb();
+  const userId = getUserId(req);
   const { name, legal_type, rut, color, icon, giro, activity_category } = await req.json();
   if (!name?.trim()) return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 });
   const id = await insertCompany({
-    name: name.trim(),
-    legal_type: legal_type || 'SPA',
-    rut: rut?.trim() || undefined,
-    color: color || '#10b981',
-    icon: icon || '🏢',
-    giro: giro?.trim() || undefined,
+    userId,
+    name:              name.trim(),
+    legal_type:        legal_type || 'SPA',
+    rut:               rut?.trim() || undefined,
+    color:             color || '#10b981',
+    icon:              icon  || '🏢',
+    giro:              giro?.trim() || undefined,
     activity_category: activity_category || undefined,
   });
   return NextResponse.json({ id }, { status: 201 });

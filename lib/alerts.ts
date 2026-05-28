@@ -1,10 +1,10 @@
 import { getBudgets, getSpendingByCategory, insertAlert, getAlerts } from './db';
 
-export async function evaluateAlerts(year: number, month: number) {
+export async function evaluateAlerts(userId: number, year: number, month: number) {
   const [budgets, spending, existingAlerts] = await Promise.all([
-    getBudgets(year, month),
-    getSpendingByCategory(year, month),
-    getAlerts(),
+    getBudgets(userId, year, month),
+    getSpendingByCategory(userId, year, month),
+    getAlerts(userId),
   ]);
 
   const existingMessages = new Set((existingAlerts as any[]).map((a) => a.message));
@@ -17,10 +17,10 @@ export async function evaluateAlerts(year: number, month: number) {
 
     if (ratio >= 1) {
       const msg = `${budget.category_icon} ${budget.category_name}: presupuesto SUPERADO (${pct}% — $${cat.total.toLocaleString()} de $${budget.limit_amount.toLocaleString()})`;
-      if (!existingMessages.has(msg)) await insertAlert('critical', msg);
+      if (!existingMessages.has(msg)) await insertAlert(userId, 'critical', msg);
     } else if (ratio >= 0.8) {
       const msg = `${budget.category_icon} ${budget.category_name}: cerca del límite (${pct}% — $${cat.total.toLocaleString()} de $${budget.limit_amount.toLocaleString()})`;
-      if (!existingMessages.has(msg)) await insertAlert('warning', msg);
+      if (!existingMessages.has(msg)) await insertAlert(userId, 'warning', msg);
     }
   }
 }

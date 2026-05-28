@@ -6,15 +6,20 @@ import {
 
 const DAY_NAMES = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
+function getUserId(req: NextRequest) {
+  return parseInt(req.headers.get('x-user-id') ?? '0') || 1;
+}
+
 export async function GET(req: NextRequest) {
   await initDb();
+  const userId = getUserId(req);
   const { searchParams } = new URL(req.url);
   const weekStart = searchParams.get('week_start') ?? getMondayOfWeek(new Date());
 
   const [budget, dailySpending, categorySpending] = await Promise.all([
-    getWeeklyBudget(weekStart),
-    getWeeklySpendingByDay(weekStart),
-    getWeeklySpendingByCategory(weekStart),
+    getWeeklyBudget(userId, weekStart),
+    getWeeklySpendingByDay(userId, weekStart),
+    getWeeklySpendingByCategory(userId, weekStart),
   ]);
 
   const today = new Date().toISOString().split('T')[0];
@@ -47,11 +52,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   await initDb();
+  const userId = getUserId(req);
   const { week_start, limit_amount, note } = await req.json();
   if (!week_start || !limit_amount) {
     return NextResponse.json({ error: 'Faltan campos' }, { status: 400 });
   }
-  await upsertWeeklyBudget(week_start, parseFloat(limit_amount), note);
+  await upsertWeeklyBudget(userId, week_start, parseFloat(limit_amount), note);
   return NextResponse.json({ success: true }, { status: 201 });
 }
 

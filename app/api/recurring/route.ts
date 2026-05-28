@@ -4,26 +4,33 @@ import {
   updateRecurringExpense, deleteRecurringExpense,
 } from '@/lib/db';
 
+function getUserId(req: NextRequest) {
+  return parseInt(req.headers.get('x-user-id') ?? '0') || 1;
+}
+
 export async function GET(req: NextRequest) {
   await initDb();
+  const userId = getUserId(req);
   const { searchParams } = new URL(req.url);
   const onlyActive = searchParams.get('active') === 'true';
-  return NextResponse.json(await getRecurringExpenses(onlyActive));
+  return NextResponse.json(await getRecurringExpenses(userId, onlyActive));
 }
 
 export async function POST(req: NextRequest) {
   await initDb();
+  const userId = getUserId(req);
   const { name, amount, category_id, day_of_month, color, icon } = await req.json();
   if (!name || !amount || !day_of_month) {
     return NextResponse.json({ error: 'Datos incompletos' }, { status: 400 });
   }
   const id = await insertRecurringExpense({
+    userId,
     name,
-    amount: Number(amount),
-    category_id: category_id ? Number(category_id) : undefined,
+    amount:       Number(amount),
+    category_id:  category_id ? Number(category_id) : undefined,
     day_of_month: Number(day_of_month),
-    color: color ?? '#6366f1',
-    icon: icon ?? '🔄',
+    color:        color ?? '#6366f1',
+    icon:         icon  ?? '🔄',
   });
   return NextResponse.json({ id });
 }
