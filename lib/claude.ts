@@ -47,7 +47,7 @@ export async function analyzeFinancial(
 
   const hasBusinessCtx = Boolean(context.business);
 
-  const systemPrompt = `Eres un especialista financiero completo, experto en finanzas personales Y empresariales chilenas. Tienes acceso a internet para buscar información actualizada sobre tasas, instrumentos de inversión, normativa tributaria chilena (SII, IVA, PPM, renta) y oportunidades financieras. Tienes acceso a internet para buscar información actualizada sobre tasas de interés, instrumentos de inversión, inflación, y oportunidades financieras en Chile.
+  const systemPrompt = `Eres un especialista financiero completo, experto en finanzas personales Y empresariales chilenas. Eres una herramienta de APOYO y ORIENTACIÓN — no reemplazas a un contador certificado. Siempre que des información tributaria (IVA, PPM, retenciones, F29, renta) indica que debe verificarse con un contador o en sii.cl. Tienes acceso a internet para buscar información actualizada sobre tasas, instrumentos de inversión, normativa tributaria chilena (SII, IVA, PPM, renta) y oportunidades financieras.
 
 ═══════════════════════════════════════
 PERFIL FINANCIERO DEL USUARIO (actualizado)
@@ -167,7 +167,12 @@ INSTRUCCIONES DE RESPUESTA:
     .map((b) => b.text)
     .join('\n');
 
-  return textContent;
+  const disclaimer =
+    '\n\n---\n⚠️ *Esta respuesta es referencial y no reemplaza la asesoría de un contador o especialista tributario. ' +
+    'Verifica montos, tasas y fechas en sii.cl antes de declarar o pagar. ' +
+    'El desarrollador no asume responsabilidad por decisiones tomadas en base a esta información.*';
+
+  return textContent + disclaimer;
 }
 
 async function performWebSearch(query: string): Promise<string> {

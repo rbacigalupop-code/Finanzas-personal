@@ -6,7 +6,13 @@ import { TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Percent, Plus, 
 import { useCompany } from '@/hooks/useCompany';
 import CompanySelector from '@/components/CompanySelector';
 import ModeSwitch from '@/components/ModeSwitch';
+import BusinessCharts from '@/components/BusinessCharts';
+import SiiAlerts from '@/components/SiiAlerts';
+import DisclaimerBanner from '@/components/DisclaimerBanner';
 
+interface MonthlyRow {
+  month: string; net_income: number; net_expenses: number; net_profit: number;
+}
 interface DashData {
   company: { id: number; name: string; legal_type: string; rut?: string; color: string; icon: string } | null;
   year: number; month: number;
@@ -21,6 +27,7 @@ interface DashData {
     category_name: string; category_icon: string; category_color: string;
     document_type: string;
   }>;
+  monthlyHistory: MonthlyRow[];
 }
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -349,6 +356,17 @@ export default function BusinessDashboard() {
               </div>
             )}
           </div>
+
+          {/* Monthly charts */}
+          {data.monthlyHistory.length > 0 && (
+            <BusinessCharts data={data.monthlyHistory} />
+          )}
+
+          {/* SII Deadlines */}
+          <SiiAlerts />
+
+          {/* Disclaimer */}
+          <DisclaimerBanner />
         </div>
       ) : null}
     </div>

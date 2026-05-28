@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { Receipt, CheckCircle, Clock, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { useCompany } from '@/hooks/useCompany';
 import CompanySelector from '@/components/CompanySelector';
+import SiiAlerts from '@/components/SiiAlerts';
+import DisclaimerBanner from '@/components/DisclaimerBanner';
 
 interface TaxData {
   year: number; month: number;
@@ -259,6 +261,12 @@ export default function TaxesPage() {
             {saving ? 'Guardando...' : 'Guardar período'}
           </button>
         </div>
+
+        {/* SII Deadlines */}
+        <SiiAlerts />
+
+        {/* Disclaimer */}
+        <DisclaimerBanner />
 
         {/* Year history */}
         {data.yearHistory.length > 0 && (

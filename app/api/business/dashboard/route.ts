@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   initDb, getBusinessMonthlySummary, getBusinessSpendingByCategory,
-  getBusinessTransactions, getTaxPeriod, getCompany,
+  getBusinessTransactions, getTaxPeriod, getCompany, getBusinessMonthlyHistory,
 } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
@@ -13,12 +13,13 @@ export async function GET(req: NextRequest) {
   const year  = now.getFullYear();
   const month = now.getMonth() + 1;
 
-  const [company, summary, spending, transactions, taxPeriod] = await Promise.all([
+  const [company, summary, spending, transactions, taxPeriod, monthlyHistory] = await Promise.all([
     getCompany(companyId),
     getBusinessMonthlySummary(year, month, companyId),
     getBusinessSpendingByCategory(year, month, companyId),
     getBusinessTransactions(year, month, companyId),
     getTaxPeriod(year, month, companyId),
+    getBusinessMonthlyHistory(companyId, 6),
   ]);
 
   const incomeNet   = Number(summary.income_net   || 0);
@@ -46,5 +47,11 @@ export async function GET(req: NextRequest) {
     ppmAmount,
     spending:    spending.filter((s: any) => Number(s.total) > 0),
     recent:      (transactions as any[]).slice(0, 5),
+    monthlyHistory: (monthlyHistory as any[]).map((h) => ({
+      month:        (h.month as string).split('-')[1],  // "01" … "12"
+      net_income:   Math.round(Number(h.income   || 0)),
+      net_expenses: Math.round(Number(h.expenses || 0)),
+      net_profit:   Math.round(Number(h.income   || 0) - Number(h.expenses || 0)),
+    })),
   });
 }

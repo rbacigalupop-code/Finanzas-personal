@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { Plus, Search, ChevronRight, X, Check, Trash2, Receipt } from 'lucide-react';
 import { useCompany } from '@/hooks/useCompany';
 import CompanySelector from '@/components/CompanySelector';
+import SiiExpenseClassifier from '@/components/SiiExpenseClassifier';
+import DisclaimerBanner from '@/components/DisclaimerBanner';
 
 interface BizTx {
   id: number; type: 'income' | 'expense';
@@ -231,6 +233,11 @@ function TxForm({
             </div>
           )}
 
+          {/* SII expense classifier — only for facturas de gasto */}
+          {type === 'expense' && docType === 'factura' && (
+            <SiiExpenseClassifier />
+          )}
+
           {/* Save button */}
           <button onClick={handleSave} disabled={!raw || !catId || saving || saved}
             className={`w-full py-4 rounded-2xl font-bold text-white text-base transition-all active:scale-95 disabled:opacity-50 ${
@@ -343,6 +350,8 @@ export default function BusinessTransactionsPage() {
         {transactions.length > 0 && (
           <p className="text-[11px] text-gray-400 text-center">Toca un registro para editarlo</p>
         )}
+
+        <DisclaimerBanner />
 
         {/* List */}
         {Object.keys(grouped).length === 0 ? (
