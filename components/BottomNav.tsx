@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, ArrowLeftRight, Target, CreditCard, BrainCircuit,
+  LayoutDashboard, ArrowLeftRight, Target, CreditCard,
   Building2, Receipt, TrendingUp, CalendarDays,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -13,15 +13,13 @@ const PERSONAL_TABS = [
   { href: '/transactions', icon: ArrowLeftRight,  label: 'Movimientos' },
   { href: '/budget',       icon: Target,          label: 'Presupuesto' },
   { href: '/debts',        icon: CreditCard,      label: 'Deudas'      },
-  { href: '/investments',  icon: BrainCircuit,    label: 'Asesor'      },
 ];
 
 const BUSINESS_TABS = [
-  { href: '/business',                icon: Building2,    label: 'Empresa'      },
-  { href: '/business/transactions',   icon: TrendingUp,   label: 'Transacciones' },
-  { href: '/business/taxes',          icon: Receipt,      label: 'Impuestos'    },
-  { href: '/business/calendar',       icon: CalendarDays, label: 'Calendario'   },
-  { href: '/investments',             icon: BrainCircuit, label: 'Asesor'       },
+  { href: '/business',              icon: Building2,    label: 'Empresa'       },
+  { href: '/business/transactions', icon: TrendingUp,   label: 'Transacciones' },
+  { href: '/business/taxes',        icon: Receipt,      label: 'Impuestos'     },
+  { href: '/business/calendar',     icon: CalendarDays, label: 'Calendario'    },
 ];
 
 export default function BottomNav() {

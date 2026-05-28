@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import BottomNav from '@/components/BottomNav';
+import FloatingAdvisorButton from '@/components/FloatingAdvisorButton';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="max-w-md mx-auto min-h-screen pb-20">
           {children}
         </main>
+        <FloatingAdvisorButton />
         <BottomNav />
       </body>
     </html>
