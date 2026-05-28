@@ -132,10 +132,11 @@ export async function initDb() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       month INTEGER NOT NULL,
       year INTEGER NOT NULL,
+      company_id INTEGER NOT NULL DEFAULT 1,
       ppm_rate REAL NOT NULL DEFAULT 1.0,
       is_declared INTEGER NOT NULL DEFAULT 0,
       notes TEXT,
-      UNIQUE(month, year)
+      UNIQUE(month, year, company_id)
     );
   `);
 
@@ -146,13 +147,42 @@ export async function initDb() {
 
 /** Adds company_id column to existing tables if not yet present */
 async function migrateCompanyId(db: Client) {
-  const migrations = [
+  const columnMigrations = [
     `ALTER TABLE business_transactions ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1`,
     `ALTER TABLE tax_periods ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1`,
   ];
-  for (const sql of migrations) {
+  for (const sql of columnMigrations) {
     try { await db.execute(sql); } catch { /* column already exists – ignore */ }
   }
+
+  // Fix UNIQUE constraint on tax_periods: old schema had UNIQUE(month, year),
+  // but multi-company requires UNIQUE(month, year, company_id).
+  // Detect by checking if the unique index covers company_id.
+  try {
+    const schema = await db.execute(
+      `SELECT sql FROM sqlite_master WHERE type='table' AND name='tax_periods'`
+    );
+    const tableSql: string = (schema.rows[0]?.sql as string) ?? '';
+    // Only rebuild if the old single-company constraint is still present
+    if (tableSql.includes('UNIQUE(month, year)') && !tableSql.includes('company_id')) {
+      await db.executeMultiple(`
+        CREATE TABLE IF NOT EXISTS tax_periods_v2 (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          month INTEGER NOT NULL,
+          year INTEGER NOT NULL,
+          company_id INTEGER NOT NULL DEFAULT 1,
+          ppm_rate REAL NOT NULL DEFAULT 1.0,
+          is_declared INTEGER NOT NULL DEFAULT 0,
+          notes TEXT,
+          UNIQUE(month, year, company_id)
+        );
+        INSERT OR IGNORE INTO tax_periods_v2 (id, month, year, company_id, ppm_rate, is_declared, notes)
+          SELECT id, month, year, COALESCE(company_id, 1), ppm_rate, is_declared, notes FROM tax_periods;
+        DROP TABLE tax_periods;
+        ALTER TABLE tax_periods_v2 RENAME TO tax_periods;
+      `);
+    }
+  } catch { /* migration already done or not needed */ }
 }
 
 const BUSINESS_CATEGORIES = [
@@ -749,7 +779,7 @@ export async function upsertTaxPeriod(year: number, month: number, companyId: nu
   await db.execute({
     sql: `INSERT INTO tax_periods (year, month, company_id, ppm_rate, is_declared, notes)
           VALUES (?, ?, ?, ?, ?, ?)
-          ON CONFLICT(month, year) DO UPDATE SET
+          ON CONFLICT(month, year, company_id) DO UPDATE SET
             ppm_rate    = COALESCE(excluded.ppm_rate, ppm_rate),
             is_declared = COALESCE(excluded.is_declared, is_declared),
             notes       = COALESCE(excluded.notes, notes)`,
