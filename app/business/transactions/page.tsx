@@ -35,13 +35,15 @@ function calcAmounts(raw: number, hasIva: boolean, amountType: 'net' | 'gross') 
 
 // ── Shared Form ───────────────────────────────────────────────────────────────
 function TxForm({
-  initial, onSave, onDelete, onClose, title,
+  initial, onSave, onDelete, onClose, title, companyGiro, companyActivityCategory,
 }: {
   initial?: Partial<BizTx>;
   onSave: (data: any) => Promise<void>;
   onDelete?: () => Promise<void>;
   onClose: () => void;
   title: string;
+  companyGiro?: string;
+  companyActivityCategory?: string;
 }) {
   const [type, setType]           = useState<'income' | 'expense'>(initial?.type ?? 'income');
   const [amount, setAmount]       = useState(initial ? String(initial.net_amount ?? '') : '');
@@ -235,7 +237,11 @@ function TxForm({
 
           {/* SII expense classifier — only for facturas de gasto */}
           {type === 'expense' && docType === 'factura' && (
-            <SiiExpenseClassifier />
+            <SiiExpenseClassifier
+              giro={companyGiro}
+              activityCategory={companyActivityCategory}
+              expenseCategoryName={cats.find((c) => c.id === catId)?.name}
+            />
           )}
 
           {/* Save button */}
@@ -401,7 +407,13 @@ export default function BusinessTransactionsPage() {
 
       {/* New transaction modal */}
       {showNew && (
-        <TxForm title="Nueva transacción" onSave={handleNew} onClose={() => setShowNew(false)} />
+        <TxForm
+          title="Nueva transacción"
+          onSave={handleNew}
+          onClose={() => setShowNew(false)}
+          companyGiro={activeCompany?.giro}
+          companyActivityCategory={activeCompany?.activity_category}
+        />
       )}
 
       {/* Edit modal */}
@@ -412,6 +424,8 @@ export default function BusinessTransactionsPage() {
           onSave={handleEdit}
           onDelete={handleDelete}
           onClose={() => setEditing(null)}
+          companyGiro={activeCompany?.giro}
+          companyActivityCategory={activeCompany?.activity_category}
         />
       )}
     </div>

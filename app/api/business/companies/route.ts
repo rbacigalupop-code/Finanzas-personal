@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   await initDb();
-  const { name, legal_type, rut, color, icon } = await req.json();
+  const { name, legal_type, rut, color, icon, giro, activity_category } = await req.json();
   if (!name?.trim()) return NextResponse.json({ error: 'Nombre requerido' }, { status: 400 });
   const id = await insertCompany({
     name: name.trim(),
@@ -23,6 +23,8 @@ export async function POST(req: NextRequest) {
     rut: rut?.trim() || undefined,
     color: color || '#10b981',
     icon: icon || '🏢',
+    giro: giro?.trim() || undefined,
+    activity_category: activity_category || undefined,
   });
   return NextResponse.json({ id }, { status: 201 });
 }

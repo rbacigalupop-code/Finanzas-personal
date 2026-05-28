@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChevronDown, Plus, Check, Pencil, Trash2, X } from 'lucide-react';
 import { useCompany, Company } from '@/hooks/useCompany';
+import { ACTIVITY_CATEGORIES } from '@/lib/sii-giros';
 
 const LEGAL_TYPES = ['SPA', 'EIRL', 'SA', 'Ltda.', 'Persona Natural'];
 const COLORS = ['#10b981','#3b82f6','#8b5cf6','#f97316','#ec4899','#ef4444','#eab308','#06b6d4'];
@@ -10,10 +11,12 @@ const ICONS  = ['🏢','🏭','🛍️','💼','🔧','🚀','🌿','🎨','📦
 
 interface CompanyFormData {
   name: string; legal_type: string; rut: string; color: string; icon: string;
+  giro: string; activity_category: string;
 }
 
 const emptyForm = (): CompanyFormData => ({
   name: '', legal_type: 'SPA', rut: '', color: '#10b981', icon: '🏢',
+  giro: '', activity_category: '',
 });
 
 export default function CompanySelector() {
@@ -33,7 +36,11 @@ export default function CompanySelector() {
 
   function openEdit(c: Company) {
     setEditTarget(c);
-    setForm({ name: c.name, legal_type: c.legal_type, rut: c.rut || '', color: c.color, icon: c.icon });
+    setForm({
+      name: c.name, legal_type: c.legal_type, rut: c.rut || '',
+      color: c.color, icon: c.icon,
+      giro: c.giro || '', activity_category: c.activity_category || '',
+    });
     setShowForm(true);
     setOpen(false);
   }
@@ -109,9 +116,10 @@ export default function CompanySelector() {
                       style={{ backgroundColor: c.color + '25' }}>
                       {c.icon}
                     </div>
-                    <div>
-                      <p className="font-semibold text-gray-800 text-sm">{c.name}</p>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-800 text-sm truncate">{c.name}</p>
                       <p className="text-xs text-gray-400">{c.legal_type}{c.rut ? ` · ${c.rut}` : ''}</p>
+                      {c.giro && <p className="text-[10px] text-emerald-600 truncate">{c.giro}</p>}
                     </div>
                     {c.id === activeCompany.id && <Check size={16} className="text-emerald-500 ml-auto" />}
                   </button>
@@ -213,15 +221,69 @@ export default function CompanySelector() {
                 />
               </div>
 
+              {/* Giro */}
+              <div>
+                <label className="text-xs text-gray-500 font-medium mb-1 block">
+                  Giro / Actividad (opcional)
+                  <span className="ml-1 text-emerald-500 font-normal">— mejora el clasificador SII</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: Desarrollo de software, Comercio retail, Restaurante"
+                  value={form.giro}
+                  onChange={(e) => setForm((f) => ({ ...f, giro: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                />
+              </div>
+
+              {/* Activity category */}
+              <div>
+                <label className="text-xs text-gray-500 font-medium mb-2 block">
+                  Categoría SII
+                  <span className="ml-1 text-gray-400 font-normal">(para orientación tributaria por giro)</span>
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {ACTIVITY_CATEGORIES.map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setForm((f) => ({
+                        ...f,
+                        activity_category: f.activity_category === cat.id ? '' : cat.id,
+                      }))}
+                      className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border text-left transition-all ${
+                        form.activity_category === cat.id
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                          : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      <span className="text-sm shrink-0">{cat.icon}</span>
+                      <span className="text-[10px] font-medium leading-tight">{cat.label}</span>
+                    </button>
+                  ))}
+                </div>
+                {form.activity_category && (
+                  <p className="text-[10px] text-gray-400 mt-1.5">
+                    {ACTIVITY_CATEGORIES.find((c) => c.id === form.activity_category)?.desc}
+                  </p>
+                )}
+              </div>
+
               {/* Preview */}
               <div className="flex items-center gap-3 bg-gray-50 rounded-2xl p-3">
                 <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
                   style={{ backgroundColor: form.color + '25' }}>
                   {form.icon}
                 </div>
-                <div>
-                  <p className="font-bold text-gray-800">{form.name || 'Nombre empresa'}</p>
+                <div className="min-w-0">
+                  <p className="font-bold text-gray-800 truncate">{form.name || 'Nombre empresa'}</p>
                   <p className="text-xs text-gray-400">{form.legal_type}{form.rut ? ` · ${form.rut}` : ''}</p>
+                  {form.giro && <p className="text-[10px] text-emerald-600 truncate">{form.giro}</p>}
+                  {form.activity_category && (
+                    <p className="text-[10px] text-gray-400">
+                      {ACTIVITY_CATEGORIES.find((c) => c.id === form.activity_category)?.icon}{' '}
+                      {ACTIVITY_CATEGORIES.find((c) => c.id === form.activity_category)?.label}
+                    </p>
+                  )}
                 </div>
               </div>
 

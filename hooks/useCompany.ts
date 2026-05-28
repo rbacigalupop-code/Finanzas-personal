@@ -9,6 +9,8 @@ export interface Company {
   rut?: string;
   color: string;
   icon: string;
+  giro?: string;
+  activity_category?: string;
   is_active: number;
 }
 

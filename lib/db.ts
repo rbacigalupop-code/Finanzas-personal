@@ -104,6 +104,8 @@ export async function initDb() {
       rut TEXT,
       color TEXT NOT NULL DEFAULT '#10b981',
       icon TEXT NOT NULL DEFAULT '🏢',
+      giro TEXT,
+      activity_category TEXT,
       is_active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -150,6 +152,8 @@ async function migrateCompanyId(db: Client) {
   const columnMigrations = [
     `ALTER TABLE business_transactions ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1`,
     `ALTER TABLE tax_periods ADD COLUMN company_id INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE companies ADD COLUMN giro TEXT`,
+    `ALTER TABLE companies ADD COLUMN activity_category TEXT`,
   ];
   for (const sql of columnMigrations) {
     try { await db.execute(sql); } catch { /* column already exists – ignore */ }
@@ -612,17 +616,21 @@ export async function getCompany(id: number) {
 
 export async function insertCompany(data: {
   name: string; legal_type: string; rut?: string; color: string; icon: string;
+  giro?: string; activity_category?: string;
 }) {
   const db = getClient();
   const res = await db.execute({
-    sql: `INSERT INTO companies (name, legal_type, rut, color, icon) VALUES (?, ?, ?, ?, ?)`,
-    args: [data.name, data.legal_type, data.rut ?? null, data.color, data.icon],
+    sql: `INSERT INTO companies (name, legal_type, rut, color, icon, giro, activity_category)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    args: [data.name, data.legal_type, data.rut ?? null, data.color, data.icon,
+           data.giro ?? null, data.activity_category ?? null],
   });
   return Number(res.lastInsertRowid);
 }
 
 export async function updateCompany(id: number, data: Partial<{
-  name: string; legal_type: string; rut: string; color: string; icon: string; is_active: number;
+  name: string; legal_type: string; rut: string; color: string; icon: string;
+  giro: string; activity_category: string; is_active: number;
 }>) {
   const db = getClient();
   const fields = Object.keys(data).map((k) => `${k} = ?`).join(', ');

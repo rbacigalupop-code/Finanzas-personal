@@ -68,10 +68,12 @@ export default function AdvisorPage() {
         query: text,
         mode,
         ...(mode === 'business' && activeCompany ? {
-          company_id:         activeCompany.id,
-          company_name:       activeCompany.name,
-          company_legal_type: activeCompany.legal_type,
-          company_rut:        activeCompany.rut,
+          company_id:                activeCompany.id,
+          company_name:              activeCompany.name,
+          company_legal_type:        activeCompany.legal_type,
+          company_rut:               activeCompany.rut,
+          company_giro:              activeCompany.giro,
+          company_activity_category: activeCompany.activity_category,
         } : {}),
       }),
     });

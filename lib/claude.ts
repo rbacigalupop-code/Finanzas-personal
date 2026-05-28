@@ -21,6 +21,8 @@ export interface FinancialContext {
     companyName?: string;
     legalType?: string;
     rut?: string;
+    giro?: string;
+    activityCategory?: string;
     incomeNet: number;
     expenseNet: number;
     netProfit: number;
@@ -67,6 +69,8 @@ ${hasBusinessCtx ? `
 PERFIL EMPRESARIAL (mes actual)
 ═══════════════════════════════════════
 🏢 Empresa:                 ${context.business!.companyName ?? 'Sin nombre'} ${context.business!.legalType ? `(${context.business!.legalType})` : ''}${context.business!.rut ? ` · RUT ${context.business!.rut}` : ''}
+${context.business!.giro ? `🏷️  Giro declarado:          ${context.business!.giro}` : ''}
+${context.business!.activityCategory ? `📂 Categoría actividad SII: ${context.business!.activityCategory}` : ''}
 📈 Ingresos netos empresa:  $${context.business!.incomeNet.toLocaleString('es-CL')}
 📉 Gastos netos empresa:    $${context.business!.expenseNet.toLocaleString('es-CL')}
 💹 Resultado neto:          $${context.business!.netProfit.toLocaleString('es-CL')}

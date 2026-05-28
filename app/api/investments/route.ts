@@ -13,7 +13,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   await initDb();
   const body = await req.json();
-  const { query, mode, company_id: bodyCompanyId, company_name, company_legal_type, company_rut } = body;
+  const { query, mode, company_id: bodyCompanyId, company_name, company_legal_type, company_rut, company_giro, company_activity_category } = body;
   if (!query?.trim()) return NextResponse.json({ error: 'Query requerida' }, { status: 400 });
 
   const now = new Date();
@@ -53,9 +53,11 @@ export async function POST(req: NextRequest) {
     const incomeNet  = Number(bizSummary.income_net  || 0);
     const expenseNet = Number(bizSummary.expense_net || 0);
     context.business = {
-      companyName:  company_name   || undefined,
-      legalType:    company_legal_type || undefined,
-      rut:          company_rut    || undefined,
+      companyName:      company_name             || undefined,
+      legalType:        company_legal_type       || undefined,
+      rut:              company_rut              || undefined,
+      giro:             company_giro             || undefined,
+      activityCategory: company_activity_category || undefined,
       incomeNet:    Math.round(incomeNet),
       expenseNet:   Math.round(expenseNet),
       netProfit:    Math.round(incomeNet - expenseNet),
